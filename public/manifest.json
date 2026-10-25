@@ -1,0 +1,23 @@
+{
+  "name": "Expiro - إدارة تواريخ صلاحية الأدوية",
+  "short_name": "Expiro",
+  "description": "تطبيق متكامل وشامل للصيادلة لإدارة تواريخ انتهاء صلاحية الأدوية، تتبع المخزون، ونظام حسابات وصلاحيات متقدم للمدير والموظفين.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#042F2E",
+  "theme_color": "#0D9488",
+  "icons": [
+    {
+      "src": "/assets/aistudio/1792873493073_3d4a99d9.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/assets/aistudio/1792873493073_3d4a99d9.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

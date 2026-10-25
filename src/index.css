@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    font-family: 'Cairo', sans-serif;
+    background-color: #F1F5F9;
+    color: #1E293B;
+  }
+}
+
+@layer utilities {
+  /* إخفاء مؤشر السكرول بالكامل لجميع المتصفحات والهواتف */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* أنيميشن ثلاث نقاط التحديث الاحترافية */
+@keyframes pulseColor1 {
+  0%, 100% {
+    background-color: #0D9488; /* Teal */
+    transform: scale(0.85);
+    box-shadow: 0 0 8px rgba(13, 148, 136, 0.4);
+  }
+  50% {
+    background-color: #06B6D4; /* Cyan */
+    transform: scale(1.3);
+    box-shadow: 0 0 14px rgba(6, 182, 212, 0.8);
+  }
+}
+
+@keyframes pulseColor2 {
+  0%, 100% {
+    background-color: #0284C7; /* Sky */
+    transform: scale(1.3);
+    box-shadow: 0 0 14px rgba(2, 132, 199, 0.8);
+  }
+  50% {
+    background-color: #6366F1; /* Indigo */
+    transform: scale(0.85);
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+  }
+}
+
+@keyframes pulseColor3 {
+  0%, 100% {
+    background-color: #10B981; /* Emerald */
+    transform: scale(0.85);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    background-color: #0D9488; /* Teal */
+    transform: scale(1.3);
+    box-shadow: 0 0 14px rgba(13, 148, 136, 0.8);
+  }
+}
+
+.dot-pulse-1 {
+  animation: pulseColor1 0.85s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.dot-pulse-2 {
+  animation: pulseColor2 0.85s cubic-bezier(0.4, 0, 0.2, 1) infinite 0.18s;
+}
+.dot-pulse-3 {
+  animation: pulseColor3 0.85s cubic-bezier(0.4, 0, 0.2, 1) infinite 0.36s;
+}
+
