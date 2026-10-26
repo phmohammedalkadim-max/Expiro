@@ -56,7 +56,6 @@ import {
   deleteUserMedicineFromFirestore, 
   subscribeToUserMedicines 
 } from './services/firebase';
-import { GitHubPushModal } from './components/GitHubPushModal';
 
 
 
@@ -439,7 +438,6 @@ export default function App() {
   const [isStaffManagementOpen, setIsStaffManagementOpen] = useState(false);
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
   const [permissionAlertMessage, setPermissionAlertMessage] = useState<string | null>(null);
-  const [isGitHubPushOpen, setIsGitHubPushOpen] = useState(false);
 
   // Form State for Add / Edit Modal with instant barcode auto-population
   const [formData, setFormData] = useState<Partial<Medicine>>({
@@ -1357,36 +1355,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* قسم دفع التغييرات إلى GitHub وبدء بناء APK تلقائياً */}
-        <div className={`p-4 rounded-2xl border shadow-xs space-y-3 ${
-          isDarkMode 
-            ? 'bg-slate-900 border-slate-800' 
-            : 'bg-gradient-to-br from-teal-50/80 via-emerald-50/50 to-teal-100/40 border-teal-200'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-teal-700 text-white flex items-center justify-center shadow-xs">
-                <UploadCloud className="w-4 h-4 text-emerald-300" />
-              </div>
-              <div>
-                <h4 className="font-extrabold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <span>دفع التغييرات إلى GitHub (CI/CD)</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                </h4>
-                <p className="text-[10.5px] text-slate-500 dark:text-slate-400">إرسال كافة التعديلات لفرع main وتشغيل Action بناء APK تلقائياً</p>
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setIsGitHubPushOpen(true)}
-            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-teal-700 to-emerald-600 hover:from-teal-800 hover:to-emerald-700 text-white font-black text-xs shadow-md shadow-teal-700/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-          >
-            <UploadCloud className="w-4 h-4" />
-            <span>دفع التغييرات إلى GitHub وبدء الـ Action فوراً</span>
-          </button>
-        </div>
-
         <div className={`p-4 rounded-2xl border shadow-xs space-y-2.5 ${
           isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-[#F8FAFC] border-[#E2E8F0]'
         }`}>
@@ -1924,13 +1892,6 @@ export default function App() {
           <span className="font-bold">كود Flutter مصحح وجاهز لبناء APK في GitHub Actions</span>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsGitHubPushOpen(true)}
-            className="px-3 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-lg font-black text-xs shadow-xs transition-transform active:scale-95 flex items-center gap-1.5 cursor-pointer"
-          >
-            <UploadCloud className="w-3.5 h-3.5" />
-            <span>دفع التغييرات لـ GitHub وبدء البناء 🚀</span>
-          </button>
           <a
             href="/Expiro_Flutter_Fixed.zip"
             download="Expiro_Flutter_Fixed.zip"
@@ -2527,13 +2488,6 @@ export default function App() {
         </div>
       )}
 
-      {/* GitHub Push Modal */}
-      <GitHubPushModal
-        isOpen={isGitHubPushOpen}
-        onClose={() => setIsGitHubPushOpen(false)}
-        currentMedicines={medicines}
-        isDarkMode={isDarkMode}
-      />
     </div>
   );
 }

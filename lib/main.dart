@@ -18,6 +18,8 @@ class ExpiroApp extends StatefulWidget {
 
 class _ExpiroAppState extends State<ExpiroApp> {
   bool _isDarkMode = false;
+  bool _showSplash = true;
+  bool _isAdminDashboard = false;
 
   void toggleTheme() {
     setState(() {
@@ -25,10 +27,29 @@ class _ExpiroAppState extends State<ExpiroApp> {
     });
   }
 
+  void toggleView(bool showAdmin) {
+    setState(() {
+      _isAdminDashboard = showAdmin;
+      _showSplash = false;
+    });
+  }
+
+  void hideSplash() {
+    setState(() {
+      _showSplash = false;
+    });
+  }
+
+  void showSplashAgain() {
+    setState(() {
+      _showSplash = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Expiro - إدارة تواريخ صلاحية الأدوية',
+      title: 'Expiro - نظام إدارة صلاحيات الأدوية',
       debugShowCheckedModeBanner: false,
       locale: const Locale('ar', 'IQ'),
       supportedLocales: const [
@@ -44,9 +65,10 @@ class _ExpiroAppState extends State<ExpiroApp> {
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
-        scaffoldBackgroundColor: const Color(0xFFF1F5F9),
+        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+        fontFamily: 'Roboto',
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0D9488),
+          seedColor: const Color(0xFF0F766E),
           primary: const Color(0xFF0F766E),
           secondary: const Color(0xFF0D9488),
           surface: const Color(0xFFFFFFFF),
@@ -57,6 +79,7 @@ class _ExpiroAppState extends State<ExpiroApp> {
         useMaterial3: true,
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0F172A),
+        fontFamily: 'Roboto',
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF0D9488),
           primary: const Color(0xFF14B8A6),
@@ -65,10 +88,23 @@ class _ExpiroAppState extends State<ExpiroApp> {
           brightness: Brightness.dark,
         ),
       ),
-      home: MainScreen(
-        isDarkMode: _isDarkMode,
-        onToggleTheme: toggleTheme,
-      ),
+      home: _showSplash
+          ? SplashScreenWidget(
+              onEnter: hideSplash,
+              isDarkMode: _isDarkMode,
+            )
+          : _isAdminDashboard
+              ? AdminDashboardWidget(
+                  isDarkMode: _isDarkMode,
+                  onToggleTheme: toggleTheme,
+                  onBackToApp: () => toggleView(false),
+                )
+              : MainScreen(
+                  isDarkMode: _isDarkMode,
+                  onToggleTheme: toggleTheme,
+                  onShowAdmin: () => toggleView(true),
+                  onShowSplash: showSplashAgain,
+                ),
     );
   }
 }
@@ -76,26 +112,21 @@ class _ExpiroAppState extends State<ExpiroApp> {
 // ==========================================
 // 1. نماذج البيانات (Models)
 // ==========================================
-
 enum ExpiryStatus { expired, nearExpiry, valid }
 
 class MedicineAnalysis {
   final ExpiryStatus status;
   final int daysRemaining;
-  final String badgeText;
-  final Color badgeBg;
-  final Color badgeTextColor;
-  final Color badgeBorderColor;
-  final Color accentColor;
+  final String statusText;
+  final Color statusColor;
+  final Color bgColor;
 
-  MedicineAnalysis({
+  const MedicineAnalysis({
     required this.status,
     required this.daysRemaining,
-    required this.badgeText,
-    required this.badgeBg,
-    required this.badgeTextColor,
-    required this.badgeBorderColor,
-    required this.accentColor,
+    required this.statusText,
+    required this.statusColor,
+    required this.bgColor,
   });
 }
 
@@ -119,64 +150,287 @@ class Medicine {
     required this.category,
     required this.barcode,
     required this.expiryDate,
-    this.alertThresholdDays = 60,
-    this.quantity = 1,
+    required this.alertThresholdDays,
+    required this.quantity,
     this.notes = '',
   });
 
-  MedicineAnalysis get analysis {
+  MedicineAnalysis analyze() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final exp = DateTime(expiryDate.year, expiryDate.month, expiryDate.day);
-    final days = exp.difference(today).inDays;
+    final daysRemaining = exp.difference(today).inDays;
 
-    if (days < 0) {
-      final absDays = days.abs();
+    if (daysRemaining <= 0) {
+      final daysAgo = daysRemaining.abs();
       return MedicineAnalysis(
         status: ExpiryStatus.expired,
-        daysRemaining: days,
-        badgeText: 'منتهي ($absDays يوم)',
-        badgeBg: const Color(0xFFFEF2F2),
-        badgeTextColor: const Color(0xFFE53935),
-        badgeBorderColor: const Color(0xFFFECACA),
-        accentColor: const Color(0xFFE53935),
+        daysRemaining: daysRemaining,
+        statusText: daysAgo == 0 ? 'منتهي اليوم' : 'منتهي ($daysAgo يوم)',
+        statusColor: const Color(0xFFE53935),
+        bgColor: const Color(0xFFFFEBEE),
       );
-    } else if (days <= alertThresholdDays) {
+    } else if (daysRemaining <= alertThresholdDays) {
       return MedicineAnalysis(
         status: ExpiryStatus.nearExpiry,
-        daysRemaining: days,
-        badgeText: 'وشيك ($days يوم)',
-        badgeBg: const Color(0xFFFFFBEB),
-        badgeTextColor: const Color(0xFFFB8C00),
-        badgeBorderColor: const Color(0xFFFDE68A),
-        accentColor: const Color(0xFFFB8C00),
+        daysRemaining: daysRemaining,
+        statusText: 'وشيك ($daysRemaining يوم)',
+        statusColor: const Color(0xFFF59E0B),
+        bgColor: const Color(0xFFFFFBEB),
       );
     } else {
       return MedicineAnalysis(
         status: ExpiryStatus.valid,
-        daysRemaining: days,
-        badgeText: 'صالح للاستخدام',
-        badgeBg: const Color(0xFFF0FDF4),
-        badgeTextColor: const Color(0xFF43A047),
-        badgeBorderColor: const Color(0xFFBBF7D0),
-        accentColor: const Color(0xFF43A047),
+        daysRemaining: daysRemaining,
+        statusText: 'صالح للاستخدام',
+        statusColor: const Color(0xFF10B981),
+        bgColor: const Color(0xFFECFDF5),
       );
     }
   }
 }
 
 // ==========================================
-// 2. الشاشة الرئيسية مع التصميم المطابق 100%
+// 2. شاشة الترحيب الافتتاحية (Splash Screen)
 // ==========================================
+class SplashScreenWidget extends StatefulWidget {
+  final VoidCallback onEnter;
+  final bool isDarkMode;
 
+  const SplashScreenWidget({
+    super.key,
+    required this.onEnter,
+    required this.isDarkMode,
+  });
+
+  @override
+  State<SplashScreenWidget> createState() => _SplashScreenWidgetState();
+}
+
+class _SplashScreenWidgetState extends State<SplashScreenWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animCtrl;
+  late Animation<double> _scaleAnim;
+  late Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    _scaleAnim = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutBack),
+    );
+    _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animCtrl, curve: Curves.easeIn),
+    );
+    _animCtrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _animCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF003833), Color(0xFF012320)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Spacer(),
+              // شعار Expiro ثلاثي الأبعاد
+              ScaleTransition(
+                scale: _scaleAnim,
+                child: FadeTransition(
+                  opacity: _fadeAnim,
+                  child: Container(
+                    width: 170,
+                    height: 170,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0D9488).withOpacity(0.3),
+                          blurRadius: 40,
+                          spreadRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: Image.asset(
+                      'public/assets/expiro_icon.png',
+                      errorBuilder: (context, error, stackTrace) =>
+                          _buildStylizedHourglass(),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 28),
+              // اسم التطبيق الرسمي
+              FadeTransition(
+                opacity: _fadeAnim,
+                child: Column(
+                  children: [
+                    const Text(
+                      'Expiro',
+                      style: TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'نظام إدارة صلاحيات الأدوية الصيدلانية',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF5EEAD4).withOpacity(0.9),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              // زر الدخول التفاعلي
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: InkWell(
+                  onTap: widget.onEnter,
+                  borderRadius: BorderRadius.circular(30),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: Colors.white.withOpacity(0.25)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF14B8A6),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'أهلاً بك في Expiro',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              // مؤشر تحضير الصيدلية
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF2DD4BF),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2DD4BF).withOpacity(0.6),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2DD4BF).withOpacity(0.3),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'جاري تحضير صيدليتك...',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.white.withOpacity(0.7),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStylizedHourglass() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F766E),
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(0xFF2DD4BF), width: 3),
+      ),
+      child: const Center(
+        child: Icon(Icons.hourglass_top_rounded, size: 70, color: Colors.white),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 3. الشاشة الرئيسية للتطبيق (MainScreen)
+// ==========================================
 class MainScreen extends StatefulWidget {
   final bool isDarkMode;
   final VoidCallback onToggleTheme;
+  final VoidCallback onShowAdmin;
+  final VoidCallback onShowSplash;
 
   const MainScreen({
     super.key,
     required this.isDarkMode,
     required this.onToggleTheme,
+    required this.onShowAdmin,
+    required this.onShowSplash,
   });
 
   @override
@@ -184,22 +438,24 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  // التبويب النشط: 0 = الرئيسية, 1 = الخسائر, 2 = الدعم, 3 = حسابي, 4 = التنبيهات
-  int _activeTab = 0;
-  String _statusFilter = 'ALL'; // 'ALL', 'EXPIRED', 'NEAR_EXPIRY', 'VALID'
-  final TextEditingController _searchController = TextEditingController();
+  int _activeTab = 0; // 0: الرئيسية, 1: الخسائر, 2: الدعم, 3: حسابي, 4: التنبيهات
   String _searchQuery = '';
-  String _userRole = 'admin'; // 'admin' أو 'staff'
-  bool _soundEnabled = true;
+  ExpiryStatus? _filterStatus;
+  String _notificationsFilter = 'all'; // all, expired, nearExpiry
+  String _userRole = 'admin'; // admin, staff
 
-  // الأدوية الأولية الثمانية المطابقة للويب شوت تماماً
-  late List<Medicine> _medicines;
+  final List<Medicine> _medicines = [];
 
   @override
   void initState() {
     super.initState();
+    _initDefaultMedicines();
+  }
+
+  void _initDefaultMedicines() {
     final now = DateTime.now();
-    _medicines = [
+    _medicines.addAll([
+      // 1. أوجمنتين (منتهي 24 يوم)
       Medicine(
         id: 1,
         tradeName: 'أوجمنتين 1 جم أقراص (Augmentin 1g)',
@@ -207,11 +463,12 @@ class _MainScreenState extends State<MainScreen> {
         companyName: 'GSK (GlaxoSmithKline)',
         category: 'المضادات الحيوية',
         barcode: '6281001230012',
-        expiryDate: now.subtract(const Duration(days: 23)),
+        expiryDate: now.subtract(const Duration(days: 24)),
         alertThresholdDays: 60,
         quantity: 12,
         notes: 'مضاد حيوي واسع المجال - عبوة 14 قرص',
       ),
+      // 2. بانادول إكسترا (منتهي 8 أيام)
       Medicine(
         id: 2,
         tradeName: 'بانادول إكسترا (Panadol Extra)',
@@ -219,11 +476,12 @@ class _MainScreenState extends State<MainScreen> {
         companyName: 'Haleon / GSK',
         category: 'مسكنات وخافضات حرارة',
         barcode: '6285000000018',
-        expiryDate: now.add(const Duration(days: 11)),
-        alertThresholdDays: 30,
-        quantity: 45,
-        notes: 'مسكن ومخفض للحرارة - أحمر سريع المفعول',
+        expiryDate: now.subtract(const Duration(days: 8)),
+        alertThresholdDays: 45,
+        quantity: 25,
+        notes: 'مسكن سريع للصداع والآلام',
       ),
+      // 3. كونكور 5 مجم (وشيك 10 أيام)
       Medicine(
         id: 3,
         tradeName: 'كونكور 5 مجم (Concor 5mg)',
@@ -231,772 +489,242 @@ class _MainScreenState extends State<MainScreen> {
         companyName: 'Merck (ميرك)',
         category: 'القلب والأوعية الدموية',
         barcode: '6281100223344',
-        expiryDate: now.add(const Duration(days: 29)),
+        expiryDate: now.add(const Duration(days: 10)),
         alertThresholdDays: 60,
         quantity: 18,
-        notes: 'علاج ارتفاع ضغط الدم والذبحة الصدرية',
+        notes: 'لعلاج ارتفاع ضغط الدم',
       ),
+      // 4. جلوكوفاج 1000 مجم (وشيك 31 يوم)
       Medicine(
         id: 4,
         tradeName: 'جلوكوفاج 1000 مجم (Glucophage)',
         scientificName: 'Metformin HCl 1000mg',
         companyName: 'Merck Serono',
-        category: 'أدوية السكري والهورمونات',
+        category: 'أدوية السكري والهرمونات',
         barcode: '3582910023419',
-        expiryDate: now.subtract(const Duration(days: 5)),
-        alertThresholdDays: 45,
-        quantity: 24,
-        notes: 'تنظيم مستوى السكر في الدم النوع الثاني',
+        expiryDate: now.add(const Duration(days: 31)),
+        alertThresholdDays: 60,
+        quantity: 30,
+        notes: 'منظم السكر بالدم',
       ),
+      // 5. نيكسيوم 40 مجم (صالح)
       Medicine(
         id: 5,
         tradeName: 'نيكسيوم 40 مجم (Nexium 40mg)',
-        scientificName: 'Esomeprazole Magnesium 40mg',
-        companyName: 'AstraZeneca (أسترازينيكا)',
+        scientificName: 'Esomeprazole 40mg',
+        companyName: 'AstraZeneca',
         category: 'الجهاز الهضمي والمعدة',
-        barcode: '7321400119283',
-        expiryDate: now.add(const Duration(days: 180)),
-        alertThresholdDays: 90,
-        quantity: 30,
+        barcode: '7313550001234',
+        expiryDate: now.add(const Duration(days: 280)),
+        alertThresholdDays: 60,
+        quantity: 15,
         notes: 'مثبط مضخة البروتون للحموضة وقرحة المعدة',
       ),
+      // 6. سيبتازول فورت (صالح)
       Medicine(
         id: 6,
         tradeName: 'سيبتازول فورت (Septazole Forte)',
-        scientificName: 'Sulfamethoxazole + Trimethoprim',
-        companyName: 'EPICO (إيبيكو)',
-        category: 'المضادات الحيوية',
-        barcode: '6221004001920',
-        expiryDate: now.add(const Duration(days: 320)),
+        scientificName: 'Trimethoprim + Sulfamethoxazole',
+        companyName: 'EIPICO',
+        category: 'مضادات ميكروبية',
+        barcode: '6221045000998',
+        expiryDate: now.add(const Duration(days: 350)),
         alertThresholdDays: 60,
-        quantity: 15,
-        notes: 'مضاد للمسالك البولية والتهابات الصدر',
+        quantity: 20,
+        notes: 'مضاد لالتهابات المسالك البولية والتنفسية',
       ),
+      // 7. بروفين 400 مجم (صالح)
       Medicine(
         id: 7,
         tradeName: 'بروفين 400 مجم (Brufen 400mg)',
         scientificName: 'Ibuprofen 400mg',
-        companyName: 'Abbott (أبوت)',
-        category: 'مسكنات وخافضات حرارة',
-        barcode: '5000456012948',
+        companyName: 'Abbott',
+        category: 'مسكنات ومضادات التهاب',
+        barcode: '5000456012908',
         expiryDate: now.add(const Duration(days: 410)),
-        alertThresholdDays: 45,
-        quantity: 60,
-        notes: 'مضاد للالتهاب ومسكن للآلام والصداع',
+        alertThresholdDays: 60,
+        quantity: 40,
+        notes: 'مسكن للآلام ومضاد للروماتيزم',
       ),
+      // 8. فيتامين د3 50000 وحدة (صالح)
       Medicine(
         id: 8,
         tradeName: 'فيتامين د3 50000 وحدة (D-Vital)',
         scientificName: 'Cholecalciferol 50,000 IU',
-        companyName: 'Julphar (جلفار)',
+        companyName: 'Sanofi',
         category: 'الفيتامينات والمكملات',
-        barcode: '6291011029341',
-        expiryDate: now.add(const Duration(days: 580)),
+        barcode: '3582910098765',
+        expiryDate: now.add(const Duration(days: 520)),
         alertThresholdDays: 90,
-        quantity: 50,
-        notes: 'جرعة أسبوعية لعلاج نقص فيتامين د',
+        quantity: 14,
+        notes: 'جرعة أسبوعية لتعويض نقص فيتامين د الحاد',
       ),
-    ];
+    ]);
   }
 
-  // الحسابات والإحصائيات
   int get totalCount => _medicines.length;
-  int get expiredCount => _medicines.where((m) => m.analysis.status == ExpiryStatus.expired).length;
-  int get nearCount => _medicines.where((m) => m.analysis.status == ExpiryStatus.nearExpiry).length;
-  int get validCount => _medicines.where((m) => m.analysis.status == ExpiryStatus.valid).length;
+  int get expiredCount => _medicines.where((m) => m.analyze().status == ExpiryStatus.expired).length;
+  int get nearExpiryCount => _medicines.where((m) => m.analyze().status == ExpiryStatus.nearExpiry).length;
+  int get validCount => _medicines.where((m) => m.analyze().status == ExpiryStatus.valid).length;
 
   List<Medicine> get filteredMedicines {
-    return _medicines.where((med) {
-      final a = med.analysis;
-      if (_statusFilter == 'EXPIRED' && a.status != ExpiryStatus.expired) return false;
-      if (_statusFilter == 'NEAR_EXPIRY' && a.status != ExpiryStatus.nearExpiry) return false;
-      if (_statusFilter == 'VALID' && a.status != ExpiryStatus.valid) return false;
-
+    return _medicines.where((m) {
+      if (_filterStatus != null && m.analyze().status != _filterStatus) {
+        return false;
+      }
       if (_searchQuery.trim().isNotEmpty) {
-        final q = _searchQuery.toLowerCase().trim();
-        final matchTrade = med.tradeName.toLowerCase().contains(q);
-        final matchSci = med.scientificName.toLowerCase().contains(q);
-        final matchComp = med.companyName.toLowerCase().contains(q);
-        final matchCat = med.category.toLowerCase().contains(q);
-        final matchCode = med.barcode.contains(q);
-        if (!matchTrade && !matchSci && !matchComp && !matchCat && !matchCode) {
-          return false;
-        }
+        final q = _searchQuery.toLowerCase();
+        final matchesTrade = m.tradeName.toLowerCase().contains(q);
+        final matchesSci = m.scientificName.toLowerCase().contains(q);
+        final matchesCompany = m.companyName.toLowerCase().contains(q);
+        final matchesCategory = m.category.toLowerCase().contains(q);
+        final matchesBarcode = m.barcode.contains(q);
+        return matchesTrade || matchesSci || matchesCompany || matchesCategory || matchesBarcode;
       }
       return true;
     }).toList();
   }
 
-  // فتح نافذة الإضافة أو التعديل
-  void _openAddEditMedicineModal({Medicine? medicineToEdit, String initialBarcode = ''}) {
-    final isEdit = medicineToEdit != null;
-    final nameCtrl = TextEditingController(text: isEdit ? medicineToEdit.tradeName : '');
-    final sciCtrl = TextEditingController(text: isEdit ? medicineToEdit.scientificName : '');
-    final compCtrl = TextEditingController(text: isEdit ? medicineToEdit.companyName : 'صيدلية مسجلة');
-    final catCtrl = TextEditingController(text: isEdit ? medicineToEdit.category : 'أدوية عامة');
-    final codeCtrl = TextEditingController(text: isEdit ? medicineToEdit.barcode : initialBarcode);
-    final qtyCtrl = TextEditingController(text: isEdit ? medicineToEdit.quantity.toString() : '1');
-    DateTime selectedDate = isEdit ? medicineToEdit.expiryDate : DateTime.now().add(const Duration(days: 180));
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (modalCtx, setModalState) {
-            final isDark = widget.isDarkMode;
-            final sheetBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-            final textCol = isDark ? Colors.white : const Color(0xFF1E293B);
-
-            return Container(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(modalCtx).viewInsets.bottom + 20,
-                top: 20,
-                left: 20,
-                right: 20,
-              ),
-              decoration: BoxDecoration(
-                color: sheetBg,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.withOpacity(0.3),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      isEdit ? 'تعديل بيانات الدواء' : 'إضافة دواء جديد للمخزون',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: textCol,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: nameCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'الاسم التجاري للدواء',
-                        labelStyle: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[700]),
-                        prefixIcon: const Icon(Icons.medication, color: Color(0xFF0F766E)),
-                        filled: true,
-                        fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: sciCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'الاسم العلمي والتركيز',
-                        prefixIcon: const Icon(Icons.science, color: Color(0xFF0F766E)),
-                        filled: true,
-                        fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: compCtrl,
-                            decoration: InputDecoration(
-                              labelText: 'الشركة المصنعة',
-                              filled: true,
-                              fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: catCtrl,
-                            decoration: InputDecoration(
-                              labelText: 'التصنيف الدوائي',
-                              filled: true,
-                              fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextField(
-                            controller: codeCtrl,
-                            decoration: InputDecoration(
-                              labelText: 'الباركود',
-                              prefixIcon: const Icon(Icons.qr_code, color: Color(0xFF0F766E)),
-                              filled: true,
-                              fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          flex: 1,
-                          child: TextField(
-                            controller: qtyCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelText: 'الكمية',
-                              filled: true,
-                              fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    InkWell(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: selectedDate,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime(2035),
-                        );
-                        if (picked != null) {
-                          setModalState(() {
-                            selectedDate = picked;
-                          });
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.calendar_today, color: Color(0xFF0F766E), size: 20),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'تاريخ الصلاحية: ${DateFormat('yyyy-MM-dd').format(selectedDate)}',
-                                  style: TextStyle(fontWeight: FontWeight.bold, color: textCol),
-                                ),
-                              ],
-                            ),
-                            const Icon(Icons.arrow_drop_down, color: Color(0xFF0F766E)),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F766E),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                      onPressed: () {
-                        if (nameCtrl.text.trim().isEmpty) return;
-                        setState(() {
-                          if (isEdit) {
-                            medicineToEdit.tradeName = nameCtrl.text.trim();
-                            medicineToEdit.scientificName = sciCtrl.text.trim();
-                            medicineToEdit.companyName = compCtrl.text.trim();
-                            medicineToEdit.category = catCtrl.text.trim();
-                            medicineToEdit.barcode = codeCtrl.text.trim();
-                            medicineToEdit.quantity = int.tryParse(qtyCtrl.text.trim()) ?? 1;
-                            medicineToEdit.expiryDate = selectedDate;
-                          } else {
-                            _medicines.insert(
-                              0,
-                              Medicine(
-                                id: DateTime.now().millisecondsSinceEpoch,
-                                tradeName: nameCtrl.text.trim(),
-                                scientificName: sciCtrl.text.trim(),
-                                companyName: compCtrl.text.trim(),
-                                category: catCtrl.text.trim(),
-                                barcode: codeCtrl.text.trim().isEmpty
-                                    ? '${DateTime.now().millisecondsSinceEpoch}'.substring(4)
-                                    : codeCtrl.text.trim(),
-                                expiryDate: selectedDate,
-                                quantity: int.tryParse(qtyCtrl.text.trim()) ?? 1,
-                              ),
-                            );
-                          }
-                        });
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(isEdit ? 'تم تحديث الدواء بنجاح' : 'تمت إضافة الدواء بنجاح'),
-                            backgroundColor: const Color(0xFF0F766E),
-                          ),
-                        );
-                      },
-                      child: Text(
-                        isEdit ? 'حفظ التعديلات' : 'إضافة للمخزون الصيدلاني',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // نافذة ماسح الباركود السريع
-  void _openBarcodeScannerModal() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        final isDark = widget.isDarkMode;
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E293B) : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+  // ========================================================
+  // الهايدر العلوي المنحني المتطابق (Curved Teal Header)
+  // ========================================================
+  Widget _buildExactHeader() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+          colors: [Color(0xFF0F766E), Color(0xFF0D9488)],
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(26),
+          bottomRight: Radius.circular(26),
+        ),
+      ),
+      padding: const EdgeInsets.only(top: 40, bottom: 18, left: 16, right: 16),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(2),
+              // الأيقونات اليسرى: الوضع الليلي + جرس التنبيهات
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: widget.onToggleTheme,
+                    icon: Icon(
+                      widget.isDarkMode ? Icons.wb_sunny_rounded : Icons.nightlight_round,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    tooltip: 'تبديل الوضع الليلي',
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'ماسح باركود الدواء (Expiro AI Scanner)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'وجّه الكاميرا نحو باركود عبوة الدواء للتعرف الفوري',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                height: 180,
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFF0D9488), width: 2),
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    const Icon(Icons.qr_code_scanner, color: Color(0xFF2DD4BF), size: 80),
-                    Positioned(
-                      bottom: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text(
-                          'جاري مسح الباركود...',
-                          style: TextStyle(color: Colors.white70, fontSize: 11),
+                  Stack(
+                    children: [
+                      IconButton(
+                        onPressed: () => setState(() => _activeTab = 4),
+                        icon: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 24),
+                        tooltip: 'التنبيهات',
+                      ),
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE53935),
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                          child: Text(
+                            '${expiredCount + nearExpiryCount}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
+                    ],
+                  ),
+                ],
+              ),
+
+              // المنتصف: اسم التطبيق Expiro
+              Column(
+                children: const [
+                  Text(
+                    'Expiro',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
                     ),
-                  ],
-                ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'إدارة تواريخ صلاحية الأدوية',
+                    style: TextStyle(
+                      color: Color(0xFFCCFBF1),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
-              const Text(
-                'أو اختر باركود تجريبي للتعرف السريع:',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+
+              // اليمين: شارة ص + مرحبا إدارة تطبيق Expiro المركزية
+              Row(
                 children: [
-                  ActionChip(
-                    avatar: const Icon(Icons.qr_code, size: 16, color: Color(0xFF0F766E)),
-                    label: const Text('أوجمنتين (6281001230012)'),
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _openAddEditMedicineModal(initialBarcode: '6281001230012');
-                    },
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: const [
+                      Text(
+                        'مرحبا',
+                        style: TextStyle(color: Color(0xFFCCFBF1), fontSize: 9.5, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'إدارة تطبيق Expiro المركزية',
+                        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ),
-                  ActionChip(
-                    avatar: const Icon(Icons.qr_code, size: 16, color: Color(0xFF0F766E)),
-                    label: const Text('بانادول (6285000000018)'),
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _openAddEditMedicineModal(initialBarcode: '6285000000018');
-                    },
-                  ),
-                  ActionChip(
-                    avatar: const Icon(Icons.qr_code, size: 16, color: Color(0xFF0F766E)),
-                    label: const Text('كونكور (6281100223344)'),
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _openAddEditMedicineModal(initialBarcode: '6281100223344');
-                    },
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'ص',
+                      style: TextStyle(
+                        color: Color(0xFF0F766E),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 17,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ],
           ),
-        );
-      },
-    );
-  }
-
-  // حذف دواء مع تأكيد
-  void _confirmDeleteMedicine(Medicine med) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('حذف الصنف الدوائي', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Text('هل أنت متأكد من رغبتك بحذف "${med.tradeName}" من سجل الصيدلية؟'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE53935), foregroundColor: Colors.white),
-            onPressed: () {
-              setState(() {
-                _medicines.removeWhere((m) => m.id == med.id);
-              });
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('تم حذف: ${med.tradeName}')),
-              );
-            },
-            child: const Text('تأكيد الحذف'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // عرض محضر إتلاف رسمي
-  void _showDisposalReport() {
-    final expired = _medicines.where((m) => m.analysis.status == ExpiryStatus.expired).toList();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Row(
-          children: [
-            Icon(Icons.assignment_late, color: Color(0xFFE53935)),
-            SizedBox(width: 8),
-            Text('محضر إتلاف رسمي فوري', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('صيدلية: صيدلية الشفاء المركزية', style: TextStyle(fontWeight: FontWeight.bold)),
-              const Text('المسؤول: د. أحمد الصيدلي'),
-              Text('التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}'),
-              const Divider(height: 24),
-              Text(
-                'عدد الأدوية التالفة المنتهية: ${expired.length} صنف',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE53935)),
-              ),
-              const SizedBox(height: 8),
-              if (expired.isEmpty)
-                const Text('لا توجد أدوية تالفة تستوجب الإتلاف حالياً.')
-              else
-                ...expired.map((m) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Text('• ${m.tradeName} (${m.quantity} عبوة)'),
-                    )),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('إغلاق'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('تم توثيق وطباعة محضر الإتلاف الرسمي بنجاح'),
-                  backgroundColor: Color(0xFF0F766E),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F766E), foregroundColor: Colors.white),
-            child: const Text('طباعة وتأكيد المحضر'),
-          ),
         ],
       ),
     );
   }
 
   // ========================================================
-  // الهايدر المطابق 100% للويب شوت (Exact 100px Header)
-  // ========================================================
-  Widget _buildExactHeader() {
-    final isHome = _activeTab == 0;
-
-    return Container(
-      width: double.infinity,
-      height: 105,
-      padding: const EdgeInsets.only(top: 36, bottom: 8, left: 14, right: 14),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF0F766E), Color(0xFF0D9488)],
-          begin: Alignment.centerRight,
-          end: Alignment.centerLeft,
-        ),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(26)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // الصف العلوي: الأيقونات ثابتة على اليمين واليسار
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              if (isHome) ...[
-                // اليمين: أيقونة الصيدلية واسمها
-                Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'ص',
-                        style: TextStyle(
-                          color: Color(0xFF0D9488),
-                          fontWeight: FontWeight.w900,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'مرحبا',
-                          style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          'صيدلية الشفاء المركزية',
-                          style: TextStyle(color: Color(0xFFCCFBF1), fontSize: 10, fontWeight: FontWeight.w500),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                // اليسار: التنبيهات والوضع الليلي
-                Row(
-                  children: [
-                    // زر التنبيهات
-                    InkWell(
-                      onTap: () {
-                        setState(() {
-                          _activeTab = 4; // صفحة التنبيهات
-                        });
-                      },
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.18),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white.withOpacity(0.25)),
-                        ),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            const Icon(Icons.notifications_none, color: Colors.white, size: 17),
-                            if (expiredCount + nearCount > 0)
-                              Positioned(
-                                top: 2,
-                                left: 2,
-                                child: Container(
-                                  padding: const EdgeInsets.all(2),
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFE53935),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    '${expiredCount + nearCount}',
-                                    style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    // زر الوضع المظلم
-                    InkWell(
-                      onTap: widget.onToggleTheme,
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.18),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white.withOpacity(0.25)),
-                        ),
-                        child: Icon(
-                          widget.isDarkMode ? Icons.wb_sunny_outlined : Icons.dark_mode_outlined,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ] else ...[
-                // في التبويبات الأخرى: زر الرجوع
-                InkWell(
-                  onTap: () {
-                    setState(() {
-                      _activeTab = 0;
-                    });
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.arrow_forward_ios, size: 12, color: Color(0xFF0D9488)),
-                        SizedBox(width: 4),
-                        Text(
-                          'رجوع',
-                          style: TextStyle(color: Color(0xFF0D9488), fontWeight: FontWeight.bold, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // أيقونة القسم
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.18),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white.withOpacity(0.25)),
-                  ),
-                  child: Icon(
-                    _activeTab == 1
-                        ? Icons.trending_down
-                        : _activeTab == 2
-                            ? Icons.headset_mic
-                            : _activeTab == 3
-                                ? Icons.person
-                                : Icons.notifications_active,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                ),
-              ],
-            ],
-          ),
-
-          // العنوان المنتصف
-          Padding(
-            padding: const EdgeInsets.only(bottom: 2),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  isHome
-                      ? 'Expiro'
-                      : _activeTab == 1
-                          ? 'الخسائر'
-                          : _activeTab == 2
-                              ? 'الدعم الفني'
-                              : _activeTab == 3
-                                  ? 'حسابي'
-                                  : 'التنبيهات',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                if (isHome)
-                  const Text(
-                    'إدارة تواريخ صلاحية الأدوية',
-                    style: TextStyle(color: Color(0xFFCCFBF1), fontSize: 9.5, fontWeight: FontWeight.w500),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ========================================================
-  // بطاقات الإحصائيات الأربعة (KPIs)
+  // بطاقات الإحصائيات الأربعة (KPIs Row)
   // ========================================================
   Widget _buildKPICards() {
-    final isDark = widget.isDarkMode;
-    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
         children: [
           // 1. الكل
@@ -1005,10 +733,8 @@ class _MainScreenState extends State<MainScreen> {
               title: 'الكل',
               count: totalCount,
               icon: Icons.layers_outlined,
-              color: const Color(0xFF0D9488),
-              isSelected: _statusFilter == 'ALL',
-              onTap: () => setState(() => _statusFilter = 'ALL'),
-              cardBg: cardBg,
+              iconColor: const Color(0xFF0D9488),
+              status: null,
             ),
           ),
           const SizedBox(width: 8),
@@ -1017,11 +743,9 @@ class _MainScreenState extends State<MainScreen> {
             child: _buildSingleKPI(
               title: 'منتهية',
               count: expiredCount,
-              icon: Icons.cancel_outlined,
-              color: const Color(0xFFE53935),
-              isSelected: _statusFilter == 'EXPIRED',
-              onTap: () => setState(() => _statusFilter = 'EXPIRED'),
-              cardBg: cardBg,
+              icon: Icons.error_outline_rounded,
+              iconColor: const Color(0xFFE53935),
+              status: ExpiryStatus.expired,
             ),
           ),
           const SizedBox(width: 8),
@@ -1029,12 +753,10 @@ class _MainScreenState extends State<MainScreen> {
           Expanded(
             child: _buildSingleKPI(
               title: 'وشيكة',
-              count: nearCount,
+              count: nearExpiryCount,
               icon: Icons.warning_amber_rounded,
-              color: const Color(0xFFFB8C00),
-              isSelected: _statusFilter == 'NEAR_EXPIRY',
-              onTap: () => setState(() => _statusFilter = 'NEAR_EXPIRY'),
-              cardBg: cardBg,
+              iconColor: const Color(0xFFF59E0B),
+              status: ExpiryStatus.nearExpiry,
             ),
           ),
           const SizedBox(width: 8),
@@ -1043,11 +765,9 @@ class _MainScreenState extends State<MainScreen> {
             child: _buildSingleKPI(
               title: 'صالحة',
               count: validCount,
-              icon: Icons.check_circle_outline,
-              color: const Color(0xFF43A047),
-              isSelected: _statusFilter == 'VALID',
-              onTap: () => setState(() => _statusFilter = 'VALID'),
-              cardBg: cardBg,
+              icon: Icons.check_circle_outline_rounded,
+              iconColor: const Color(0xFF10B981),
+              status: ExpiryStatus.valid,
             ),
           ),
         ],
@@ -1059,55 +779,62 @@ class _MainScreenState extends State<MainScreen> {
     required String title,
     required int count,
     required IconData icon,
-    required Color color,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required Color cardBg,
+    required Color iconColor,
+    required ExpiryStatus? status,
   }) {
+    final isSelected = _filterStatus == status;
+    final cardBg = widget.isDarkMode
+        ? (isSelected ? const Color(0xFF1E293B) : const Color(0xFF0F172A))
+        : (isSelected ? Colors.teal.shade50 : Colors.white);
+
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        setState(() {
+          _filterStatus = isSelected ? null : status;
+        });
+      },
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? color : const Color(0xFFE2E8F0),
+            color: isSelected ? const Color(0xFF0D9488) : const Color(0xFFE2E8F0),
             width: isSelected ? 2 : 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 4,
+              color: Colors.black.withOpacity(widget.isDarkMode ? 0.3 : 0.04),
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                Icon(icon, color: iconColor, size: 16),
+                const SizedBox(width: 4),
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 10.5,
+                    fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: widget.isDarkMode ? Colors.grey[400] : const Color(0xFF64748B),
+                    color: widget.isDarkMode ? Colors.white70 : const Color(0xFF475569),
                   ),
                 ),
-                Icon(icon, size: 14, color: color),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               '$count',
               style: TextStyle(
-                fontSize: 17,
+                fontSize: 18,
                 fontWeight: FontWeight.w900,
-                color: color,
+                color: isSelected ? const Color(0xFF0D9488) : (widget.isDarkMode ? Colors.white : const Color(0xFF0F172A)),
               ),
             ),
           ],
@@ -1117,93 +844,68 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ========================================================
-  // شريط البحث المدمج وزر ماسح الباركود
+  // شريط البحث وماسح الباركود
   // ========================================================
   Widget _buildSearchAndScanBar() {
     final isDark = widget.isDarkMode;
-    final fillCol = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
-    final borderCol = isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1);
-
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
         children: [
-          // حقل البحث
-          Expanded(
-            child: Container(
-              height: 44,
-              decoration: BoxDecoration(
-                color: fillCol,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: borderCol),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 10),
-                  const Icon(Icons.search, color: Color(0xFF0D9488), size: 18),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (val) => setState(() => _searchQuery = val),
-                      style: TextStyle(fontSize: 12, color: isDark ? Colors.white : const Color(0xFF0F172A)),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        hintText: 'ابحث بالاسم، الشركة، الفئة، أو الباركود...',
-                        hintStyle: TextStyle(
-                          fontSize: 11,
-                          color: isDark ? Colors.grey[500] : const Color(0xFF64748B),
-                        ),
-                        border: InputBorder.none,
-                      ),
-                    ),
-                  ),
-                  if (_searchQuery.isNotEmpty)
-                    InkWell(
-                      onTap: () {
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 6),
-                        child: Icon(Icons.close, size: 16, color: Colors.grey),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
           // زر ماسح باركود
           InkWell(
             onTap: _openBarcodeScannerModal,
             borderRadius: BorderRadius.circular(14),
             child: Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0F766E), Color(0xFF0D9488)],
-                ),
+                color: const Color(0xFF0F766E),
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
                     color: const Color(0xFF0F766E).withOpacity(0.3),
-                    blurRadius: 4,
+                    blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.qr_code_scanner, color: Colors.white, size: 16),
-                  SizedBox(width: 5),
+              child: Row(
+                children: const [
+                  Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 18),
+                  SizedBox(width: 6),
                   Text(
                     'ماسح باركود',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                    style: TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold),
                   ),
                 ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // حقل البحث
+          Expanded(
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: TextField(
+                onChanged: (val) => setState(() => _searchQuery = val),
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontSize: 12),
+                decoration: InputDecoration(
+                  hintText: 'ابحث بالاسم، الشركة، الفئة، أو الباركود...',
+                  hintStyle: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? Colors.grey[500] : Colors.grey[400],
+                  ),
+                  prefixIcon: const Icon(Icons.search, size: 19, color: Color(0xFF0D9488)),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
               ),
             ),
           ),
@@ -1213,228 +915,221 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ========================================================
-  // بطاقة الدواء المدمجة (Compact Medicine Card) المطابقة تماماً
+  // بطاقة الدواء الواحدة المتطابقة تماماً مع التصميم
   // ========================================================
   Widget _buildMedicineCard(Medicine med) {
-    final a = med.analysis;
+    final analysis = med.analyze();
     final isDark = widget.isDarkMode;
-    final cardBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF);
-    final textCol = isDark ? Colors.white : const Color(0xFF1E293B);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
       decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 6,
+            color: Colors.black.withOpacity(isDark ? 0.25 : 0.03),
+            blurRadius: 5,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // الشريط الجانبي الملون على يمين البطاقة
+            // الخط الجانبي الأيمن الملون (أحمر، برتقالي، أخضر)
             Container(
               width: 5,
-              color: a.accentColor,
+              color: analysis.statusColor,
             ),
-            // المحتوى الداخلي
+
+            // محتوى البطاقة الكامل
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // الصف 1: الاسم التجاري + شارة الحالة
+                    // الصف العلوي: شارة الحالة + الاسم التجاري
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            med.tradeName,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w900,
-                              color: textCol,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
+                        // شارة الحالة
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: a.badgeBg,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: a.badgeBorderColor),
+                            color: analysis.bgColor,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: analysis.statusColor.withOpacity(0.3)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                a.status == ExpiryStatus.expired
-                                    ? Icons.cancel
-                                    : a.status == ExpiryStatus.nearExpiry
+                                analysis.status == ExpiryStatus.expired
+                                    ? Icons.cancel_outlined
+                                    : analysis.status == ExpiryStatus.nearExpiry
                                         ? Icons.warning_amber_rounded
-                                        : Icons.check_circle,
-                                size: 11,
-                                color: a.badgeTextColor,
+                                        : Icons.check_circle_outline_rounded,
+                                size: 12,
+                                color: analysis.statusColor,
                               ),
-                              const SizedBox(width: 3),
+                              const SizedBox(width: 4),
                               Text(
-                                a.badgeText,
+                                analysis.statusText,
                                 style: TextStyle(
-                                  fontSize: 9.5,
+                                  color: analysis.statusColor,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.bold,
-                                  color: a.badgeTextColor,
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                        // اسم الدواء التجاري
+                        Expanded(
+                          child: Text(
+                            med.tradeName,
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 4),
 
-                    // الصف 2: الاسم العلمي + تاريخ الصلاحية
+                    // الصف الثاني: تاريخ الانتهاء + الاسم العلمي
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Expanded(
-                          child: Text(
-                            med.scientificName.isEmpty ? 'صنف دوائي عام' : med.scientificName,
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w500,
-                              color: isDark ? Colors.grey[400] : const Color(0xFF64748B),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
+                        // صندوق التاريخ
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            borderRadius: BorderRadius.circular(6),
                           ),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.calendar_today, size: 10, color: Color(0xFF64748B)),
+                              Icon(Icons.calendar_today_outlined, size: 11, color: isDark ? Colors.white60 : Colors.black54),
                               const SizedBox(width: 4),
                               Text(
                                 DateFormat('yyyy-MM-dd').format(med.expiryDate),
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
-                                  fontFamily: 'monospace',
-                                  color: a.accentColor,
+                                  color: isDark ? Colors.white70 : const Color(0xFF334155),
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                        // الاسم العلمي
+                        Expanded(
+                          child: Text(
+                            med.scientificName,
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? Colors.grey[400] : const Color(0xFF64748B),
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // الصف الثالث: الشركة المصنعة والفئة
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (med.category.isNotEmpty) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0D9488).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              med.category,
+                              style: const TextStyle(
+                                color: Color(0xFF0F766E),
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            med.companyName,
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : const Color(0xFF475569),
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 6),
-                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                    const SizedBox(height: 6),
 
-                    // الصف 3: الشرائح (الشركة، الفئة، الباركود) + أزرار التعديل والحذف
+                    // الصف الرابع: الباركود وأزرار التعديل والحذف
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Expanded(
-                          child: Wrap(
-                            spacing: 4,
-                            runSpacing: 4,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0).withOpacity(0.8),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  med.companyName,
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w500,
-                                    color: isDark ? Colors.grey[300] : const Color(0xFF334155),
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF042F2E) : const Color(0xFFCCFBF1),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  med.category,
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    color: isDark ? const Color(0xFF5EEAD4) : const Color(0xFF0F766E),
-                                  ),
-                                ),
-                              ),
-                              if (med.barcode.isNotEmpty)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0).withOpacity(0.8),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.qr_code, size: 9, color: Color(0xFF64748B)),
-                                      const SizedBox(width: 2),
-                                      Text(
-                                        med.barcode,
-                                        style: TextStyle(
-                                          fontSize: 8.5,
-                                          fontFamily: 'monospace',
-                                          color: isDark ? Colors.grey[400] : const Color(0xFF475569),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
+                        // أزرار الحذف والتعديل
                         Row(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            InkWell(
-                              onTap: () => _openAddEditMedicineModal(medicineToEdit: med),
-                              borderRadius: BorderRadius.circular(8),
-                              child: const Padding(
-                                padding: EdgeInsets.all(4),
-                                child: Icon(Icons.edit_outlined, size: 15, color: Color(0xFF0D9488)),
+                            IconButton(
+                              onPressed: () => _confirmDeleteMedicine(med),
+                              icon: const Icon(Icons.delete_outline, size: 17, color: Colors.grey),
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                            const SizedBox(width: 12),
+                            IconButton(
+                              onPressed: () => _openAddEditMedicineModal(medicineToEdit: med),
+                              icon: const Icon(Icons.edit_outlined, size: 17, color: Colors.grey),
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ],
+                        ),
+                        // شارة الباركود
+                        Row(
+                          children: [
+                            Text(
+                              med.barcode,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontFamily: 'monospace',
+                                color: isDark ? Colors.grey[400] : Colors.grey[600],
                               ),
                             ),
-                            const SizedBox(width: 2),
-                            InkWell(
-                              onTap: () => _confirmDeleteMedicine(med),
-                              borderRadius: BorderRadius.circular(8),
-                              child: const Padding(
-                                padding: EdgeInsets.all(4),
-                                child: Icon(Icons.delete_outline, size: 15, color: Color(0xFFE53935)),
-                              ),
-                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.qr_code, size: 13, color: isDark ? Colors.grey[400] : Colors.grey[600]),
                           ],
                         ),
                       ],
@@ -1450,248 +1145,605 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ========================================================
-  // محتوى التبويبات الأخرى (الخسائر، الدعم، حسابي، التنبيهات)
+  // 4. شاشة الخسائر والمخاطر (Losses Screen)
   // ========================================================
-
   Widget _buildLossesView() {
-    final expired = _medicines.where((m) => m.analysis.status == ExpiryStatus.expired).toList();
-    final near = _medicines.where((m) => m.analysis.status == ExpiryStatus.nearExpiry).toList();
+    final isDark = widget.isDarkMode;
+    final affectedMeds = _medicines.where((m) {
+      final s = m.analyze().status;
+      return s == ExpiryStatus.expired || s == ExpiryStatus.nearExpiry;
+    }).toList();
 
-    return Padding(
-      padding: const EdgeInsets.all(12),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(top: 8, bottom: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: widget.isDarkMode ? const Color(0xFF1E293B) : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // شريط العنوان مع زر رجوع
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
-                  children: [
-                    Icon(Icons.trending_down, color: Color(0xFFE53935), size: 20),
-                    SizedBox(width: 8),
-                    Text('إحصائيات الخسائر والمخاطر', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'تتبع مفصل للأدوية التالفة والحرجة لتجنب الهدر المالي',
-                  style: TextStyle(fontSize: 10.5, color: Colors.grey),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEF2F2),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFFECACA)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('أدوية تالفة (منتهية)', style: TextStyle(color: Color(0xFFE53935), fontSize: 10, fontWeight: FontWeight.bold)),
-                            Text('$expiredCount', style: const TextStyle(color: Color(0xFFE53935), fontSize: 20, fontWeight: FontWeight.w900)),
-                            const Text('عبوة ملزمة بالإتلاف', style: TextStyle(color: Color(0xFFE53935), fontSize: 9)),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFFBEB),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFFDE68A)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('أدوية وشيكة (حرجة)', style: TextStyle(color: Color(0xFFFB8C00), fontSize: 10, fontWeight: FontWeight.bold)),
-                            Text('$nearCount', style: const TextStyle(color: Color(0xFFFB8C00), fontSize: 20, fontWeight: FontWeight.w900)),
-                            const Text('تحتاج تصريف سريع', style: TextStyle(color: Color(0xFFFB8C00), fontSize: 9)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
                 ElevatedButton.icon(
-                  onPressed: _showDisposalReport,
-                  icon: const Icon(Icons.assignment, size: 16),
-                  label: const Text('إصدار محضر إتلاف رسمي فوري', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  onPressed: () => setState(() => _activeTab = 0),
+                  icon: const Icon(Icons.arrow_back, size: 14),
+                  label: const Text('رجوع', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0F766E),
                     foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(40),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   ),
                 ),
+                const Text('الخسائر', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 40),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'الأدوية المتأثرة بالخسائر (${expired.length + near.length})',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ListView(
-              children: [
-                ...expired.map(_buildMedicineCard),
-                ...near.map(_buildMedicineCard),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildSupportView() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
+          // بطاقة إحصائيات الخسائر والمخاطر
           Container(
-            padding: const EdgeInsets.all(20),
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: widget.isDarkMode ? const Color(0xFF1E293B) : Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFCCFBF1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.headset_mic, color: Color(0xFF0F766E), size: 26),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'مركز الدعم الفني لصيادلة Expiro',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'فريقنا متواجد 24/7 لخدمتكم ومساعدتكم في تنظيم مستودعات الصيدلية',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 11, color: Colors.grey),
-                ),
-                const SizedBox(height: 16),
-                ListTile(
-                  leading: const Icon(Icons.phone, color: Color(0xFF0F766E)),
-                  title: const Text('الخط الساخن المباشر', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('07701234567', style: TextStyle(fontSize: 11)),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 12),
-                  onTap: () {},
-                ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.chat, color: Color(0xFF0F766E)),
-                  title: const Text('محادثة واتساب الفورية', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('دعم فني سريع', style: TextStyle(fontSize: 11)),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 12),
-                  onTap: () {},
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileView() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: widget.isDarkMode ? const Color(0xFF1E293B) : Colors.white,
-              borderRadius: BorderRadius.circular(24),
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Column(
               children: [
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: const [
+                        Text('إحصائيات الخسائر والمخاطر', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text('تتبع مفصل للأدوية التالفة والحرجة لتجنب الهدر المالي', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                      ],
+                    ),
+                    const SizedBox(width: 8),
                     Container(
-                      width: 50,
-                      height: 50,
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.rose.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.trending_down, color: Colors.rose, size: 20),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    // أدوية تالفة
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFEBEE),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFFFCDD2)),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(Icons.error_outline, color: Color(0xFFE53935), size: 14),
+                                SizedBox(width: 4),
+                                Text('أدوية تالفة (منتهية)', style: TextStyle(color: Color(0xFFB71C1C), fontSize: 10, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text('$expiredCount', style: const TextStyle(color: Color(0xFFB71C1C), fontSize: 20, fontWeight: FontWeight.bold)),
+                            const Text('عبوة ملزمة بالإتلاف الرسمي', style: TextStyle(color: Colors.grey, fontSize: 8.5)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // أدوية وشيكة
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFFDE68A)),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 14),
+                                SizedBox(width: 4),
+                                Text('أدوية وشيكة (حرجة)', style: TextStyle(color: Color(0xFFB45309), fontSize: 10, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text('$nearExpiryCount', style: const TextStyle(color: Color(0xFFB45309), fontSize: 20, fontWeight: FontWeight.bold)),
+                            const Text('تحتاج تصريف أو تدوير سريع', style: TextStyle(color: Colors.grey, fontSize: 8.5)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                // زر إصدار محضر إتلاف رسمي فوري
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _openOfficialDisposalReportModal,
+                    icon: const Icon(Icons.assignment_outlined, size: 18),
+                    label: const Text('إصدار محضر إتلاف رسمي فوري', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F766E),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // قائمة الأدوية المتأثرة بالخسائر
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            child: Text(
+              'الأدوية المتأثرة بالخسائر (${affectedMeds.length})',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              textAlign: TextAlign.right,
+            ),
+          ),
+          ...affectedMeds.map(_buildMedicineCard),
+        ],
+      ),
+    );
+  }
+
+  // ========================================================
+  // 5. شاشة التنبيهات (Notifications Screen)
+  // ========================================================
+  Widget _buildNotificationsView() {
+    final allAlerts = _medicines.where((m) {
+      final s = m.analyze().status;
+      return s == ExpiryStatus.expired || s == ExpiryStatus.nearExpiry;
+    }).toList();
+
+    List<Medicine> displayAlerts = allAlerts;
+    if (_notificationsFilter == 'expired') {
+      displayAlerts = _medicines.where((m) => m.analyze().status == ExpiryStatus.expired).toList();
+    } else if (_notificationsFilter == 'nearExpiry') {
+      displayAlerts = _medicines.where((m) => m.analyze().status == ExpiryStatus.nearExpiry).toList();
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(top: 8, bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // شريط العنوان مع زر رجوع
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () => setState(() => _activeTab = 0),
+                  icon: const Icon(Icons.arrow_back, size: 14),
+                  label: const Text('رجوع', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F766E),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  ),
+                ),
+                const Text('التنبيهات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 40),
+              ],
+            ),
+          ),
+
+          // فلاتر التنبيهات الثلاثية (كافة التنبيهات 4, منتهية 2, وشيكة 2)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildFilterPill('كافة التنبيهات ${allAlerts.length}', 'all', const Color(0xFF0F766E)),
+                const SizedBox(width: 8),
+                _buildFilterPill('منتهية $expiredCount', 'expired', const Color(0xFFE53935)),
+                const SizedBox(width: 8),
+                _buildFilterPill('وشيكة $nearExpiryCount', 'nearExpiry', const Color(0xFFF59E0B)),
+              ],
+            ),
+          ),
+
+          // قائمة التنبيهات
+          ...displayAlerts.map(_buildMedicineCard),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterPill(String label, String filterKey, Color activeColor) {
+    final isSelected = _notificationsFilter == filterKey;
+    return InkWell(
+      onTap: () => setState(() => _notificationsFilter = filterKey),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor : (widget.isDarkMode ? const Color(0xFF1E293B) : Colors.white),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? activeColor : const Color(0xFFE2E8F0)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : (widget.isDarkMode ? Colors.white70 : const Color(0xFF334155)),
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ========================================================
+  // 6. شاشة الدعم والمساعدة (Support Screen)
+  // ========================================================
+  Widget _buildSupportView() {
+    final isDark = widget.isDarkMode;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(top: 8, bottom: 20),
+      child: Column(
+        children: [
+          // شريط العنوان مع زر رجوع
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () => setState(() => _activeTab = 0),
+                  icon: const Icon(Icons.arrow_back, size: 14),
+                  label: const Text('رجوع', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F766E),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  ),
+                ),
+                const Text('الدعم', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 40),
+              ],
+            ),
+          ),
+
+          // بطاقة مركز الدعم
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: const [
+                        Text('مركز الدعم الفني والمساعدة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text('فريق خدمة عملاء Expiro متاح لمساعدتكم على مدار الساعة', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                      ],
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0D9488).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.headset_mic_rounded, color: Color(0xFF0F766E), size: 20),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // الخط الساخن
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('الاتصال بالرقم: 07701234567')),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F766E),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text('اتصال', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: const [
+                          Text('الخط الساخن المباشر', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                          Text('07701234567', style: TextStyle(color: Colors.grey, fontSize: 10, fontFamily: 'monospace')),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // محادثة واتساب
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('فتح محادثة واتساب الفورية...')),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text('مراسلة', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: const [
+                          Text('محادثة واتساب الفورية', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                          Text('استجابة سريعة خلال دقائق معدودة', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // الأسئلة الشائعة
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: const [
+                Text('الأسئلة الشائعة والإرشادات', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                SizedBox(height: 10),
+                Text('كيف يتم فحص تواريخ الصلاحية؟', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF0F766E))),
+                Text('يقوم Expiro تلقائياً بحساب الأيام المتبقية وتصنيف الدواء (صالح / وشيك / منتهي) بدقة متناهية.', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                Divider(height: 16),
+                Text('أين أجد كود تسجيل الموظفين؟', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF0F766E))),
+                Text('من تبويب "حسابي"، اضغط على "إدارة حسابات الستاف والموظفين" لمشاركة كود الانضمام المباشر.', style: TextStyle(fontSize: 10, color: Colors.grey)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ========================================================
+  // 7. شاشة حسابي والإعدادات (Profile Screen)
+  // ========================================================
+  Widget _buildProfileView() {
+    final isDark = widget.isDarkMode;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(top: 8, bottom: 20),
+      child: Column(
+        children: [
+          // شريط العنوان مع زر رجوع
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () => setState(() => _activeTab = 0),
+                  icon: const Icon(Icons.arrow_back, size: 14),
+                  label: const Text('رجوع', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F766E),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  ),
+                ),
+                const Text('حسابي', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 40),
+              ],
+            ),
+          ),
+
+          // بطاقة ملف الصيدلي المالك
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // الشارة
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCCFBF1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text('مدير الصيدلية (Admin)', style: TextStyle(color: Color(0xFF0F766E), fontSize: 9.5, fontWeight: FontWeight.bold)),
+                ),
+                // الاسم والتفاصيل
+                Row(
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: const [
+                        Text('ص. مالك التطبيق (Admin)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text('إدارة تطبيق Expiro المركزية', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                        Text('رقم الهاتف : 07829692579', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      width: 44,
+                      height: 44,
                       decoration: const BoxDecoration(
                         gradient: LinearGradient(colors: [Color(0xFF0F766E), Color(0xFF0D9488)]),
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
-                      child: const Text('ص', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('صيدلية الشفاء المركزية', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        const Text('د. أحمد الصيدلي (مدير الصيدلية)', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                        Container(
-                          margin: const EdgeInsets.only(top: 4),
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFCCFBF1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text('مرخص رسمياً', style: TextStyle(color: Color(0xFF0F766E), fontSize: 9, fontWeight: FontWeight.bold)),
-                        ),
-                      ],
+                      child: const Text('ص', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                const Divider(),
+              ],
+            ),
+          ),
+
+          // صلاحيات وإدارة المدير
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: const [
+                    Text('صلاحيات وإدارة المدير', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    SizedBox(width: 6),
+                    Icon(Icons.shield_outlined, size: 16, color: Color(0xFF0F766E)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // الانتقال إلى لوحة تحكم مالك النظام (Admin Dashboard)
+                _buildActionTile(
+                  icon: Icons.admin_panel_settings_outlined,
+                  title: 'الانتقال إلى لوحة تحكم مالك النظام (Admin Dashboard)',
+                  color: const Color(0xFFD97706),
+                  onTap: widget.onShowAdmin,
+                ),
+                _buildActionTile(
+                  icon: Icons.badge_outlined,
+                  title: 'بيانات الصيدلية وإجازة الممارسة',
+                  color: const Color(0xFF0F766E),
+                  onTap: _openPharmacyLicenseModal,
+                ),
+                _buildActionTile(
+                  icon: Icons.people_outline_rounded,
+                  title: 'إدارة حسابات الستاف والموظفين',
+                  color: const Color(0xFF0F766E),
+                  onTap: _openStaffManagementModal,
+                ),
+                _buildActionTile(
+                  icon: Icons.description_outlined,
+                  title: 'محضر الإتلاف الرسمي للأدوية',
+                  color: const Color(0xFF0F766E),
+                  onTap: _openOfficialDisposalReportModal,
+                ),
+                _buildActionTile(
+                  icon: Icons.swap_horiz_rounded,
+                  title: 'تبديل الدور تجريبياً (مدير / كادر)',
+                  subtitle: 'الحالي: ${_userRole == 'admin' ? 'مدير' : 'كادر'}',
+                  color: const Color(0xFF0F766E),
+                  onTap: () {
+                    setState(() {
+                      _userRole = _userRole == 'admin' ? 'staff' : 'admin';
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('تم تبديل الدور إلى: ${_userRole == 'admin' ? 'مدير الصيدلية' : 'موظف كادر'}')),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          // إعدادات التطبيق
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const Text('إعدادات التطبيق', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 10),
                 SwitchListTile(
                   title: const Text('الوضع المظلم (Dark Mode)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   value: widget.isDarkMode,
-                  activeColor: const Color(0xFF0D9488),
+                  activeColor: const Color(0xFF0F766E),
                   onChanged: (val) => widget.onToggleTheme(),
                 ),
-                SwitchListTile(
-                  title: const Text('المؤثرات الصوتية', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  value: _soundEnabled,
-                  activeColor: const Color(0xFF0D9488),
-                  onChanged: (val) => setState(() => _soundEnabled = val),
-                ),
+                const Divider(),
                 ListTile(
-                  title: const Text('تبديل الصلاحية (تجريبي)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  subtitle: Text(_userRole == 'admin' ? 'الصلاحية: مدير الصيدلية' : 'الصلاحية: موظف كادر', style: const TextStyle(fontSize: 10)),
+                  title: const Text('الشاشة الترحيبية الافتتاحية', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  subtitle: const Text('معاينة حركة الشعار وشاشة البداية الرسمية', style: TextStyle(fontSize: 10, color: Colors.grey)),
                   trailing: ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _userRole = _userRole == 'admin' ? 'staff' : 'admin';
-                      });
-                    },
+                    onPressed: widget.onShowSplash,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0D9488),
+                      backgroundColor: const Color(0xFF0F766E),
                       foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     ),
-                    child: Text(_userRole == 'admin' ? 'تبديل لموظف' : 'تبديل لمدير', style: const TextStyle(fontSize: 10)),
+                    child: const Text('معاينة', style: TextStyle(fontSize: 10)),
                   ),
                 ),
               ],
@@ -1702,30 +1754,33 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildNotificationsView() {
-    final alertList = _medicines.where((m) => m.analysis.status != ExpiryStatus.valid).toList();
-
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('كافة التنبيهات النشطة (${alertList.length})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-          const SizedBox(height: 8),
-          Expanded(
-            child: alertList.isEmpty
-                ? const Center(child: Text('لا توجد تنبيهات حالياً.'))
-                : ListView(
-                    children: alertList.map(_buildMedicineCard).toList(),
-                  ),
-          ),
-        ],
+  Widget _buildActionTile({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: widget.isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: ListTile(
+        dense: true,
+        leading: const Icon(Icons.arrow_back_ios_new, size: 12, color: Colors.grey),
+        trailing: Icon(icon, color: color, size: 20),
+        title: Text(title, textAlign: TextAlign.right, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+        subtitle: subtitle != null ? Text(subtitle, textAlign: TextAlign.right, style: TextStyle(fontSize: 9.5, color: color, fontWeight: FontWeight.bold)) : null,
+        onTap: onTap,
       ),
     );
   }
 
   // ========================================================
-  // شريط التنقل السفلي مع الزر البارز بالمنتصف (+)
+  // 8. شريط التنقل السفلي مع الزر البارز بالمنتصف (+)
   // ========================================================
   Widget _buildBottomNavigationBar() {
     final isDark = widget.isDarkMode;
@@ -1734,7 +1789,7 @@ class _MainScreenState extends State<MainScreen> {
     return Container(
       decoration: BoxDecoration(
         color: navBg,
-        border: Border(top: BorderSide(color: navBg)),
+        border: Border(top: BorderSide(color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0))),
       ),
       padding: const EdgeInsets.only(top: 6, bottom: 12, left: 8, right: 8),
       child: Row(
@@ -1750,7 +1805,7 @@ class _MainScreenState extends State<MainScreen> {
           Transform.translate(
             offset: const Offset(0, -10),
             child: InkWell(
-              onTap: () => _openAddEditMedicineModal(),
+              onTap: _openAddBottomSheet,
               borderRadius: BorderRadius.circular(30),
               child: Container(
                 width: 48,
@@ -1855,6 +1910,411 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ========================================================
+  // 9. نافذة إضافة علاج جديد BottomSheet (المطابقة للقطة 1)
+  // ========================================================
+  void _openAddBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        final isDark = widget.isDarkMode;
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // مقبض السحب
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'إضافة علاج جديد',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'اختر طريقة تسجيل الدواء لمتابعة صلاحيته بدقة',
+                style: TextStyle(fontSize: 10.5, color: isDark ? Colors.white60 : Colors.grey[600]),
+              ),
+              const SizedBox(height: 18),
+
+              // خيار 1: مسح باركود
+              InkWell(
+                onTap: () {
+                  Navigator.pop(context);
+                  _openBarcodeScannerModal();
+                },
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F766E).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF0F766E).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.arrow_back, size: 16, color: Color(0xFF0F766E)),
+                      const Spacer(),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: const [
+                          Text('مسح باركود', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0F766E))),
+                          Text('التعرف التلقائي على اسم الشركة والفئة والصنف', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F766E),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 20),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // خيار 2: إدخال يدوي
+              InkWell(
+                onTap: () {
+                  Navigator.pop(context);
+                  _openAddEditMedicineModal();
+                },
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.arrow_back, size: 16, color: Colors.grey),
+                      const Spacer(),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: const [
+                          Text('إدخال يدوي', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          Text('كتابة اسم العلاج والشركة وتاريخ الانتهاء يدوياً', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[800],
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.edit, color: Colors.white, size: 20),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ========================================================
+  // 10. نوافذ الحوار (Modals)
+  // ========================================================
+  void _openBarcodeScannerModal() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        String testCode = '6281001230012';
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('ماسح الباركود الصيدلاني', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 140,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: const [
+                    Icon(Icons.camera_alt, color: Colors.white30, size: 48),
+                    Icon(Icons.qr_code_scanner, color: Color(0xFF2DD4BF), size: 90),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text('قم بتوجيه الكاميرا نحو باركود عبوة الدواء للتعرف عليه فوراً', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey)),
+              const SizedBox(height: 10),
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'أو أدخل رقم الباركود يدوياً',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                ),
+                onChanged: (val) => testCode = val,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _openAddEditMedicineModal(initialBarcode: testCode);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F766E), foregroundColor: Colors.white),
+              child: const Text('تأكيد المسح'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _openAddEditMedicineModal({Medicine? medicineToEdit, String? initialBarcode}) {
+    final tradeCtrl = TextEditingController(text: medicineToEdit?.tradeName ?? '');
+    final sciCtrl = TextEditingController(text: medicineToEdit?.scientificName ?? '');
+    final compCtrl = TextEditingController(text: medicineToEdit?.companyName ?? '');
+    final catCtrl = TextEditingController(text: medicineToEdit?.category ?? '');
+    final barCtrl = TextEditingController(text: medicineToEdit?.barcode ?? initialBarcode ?? '');
+    final qtyCtrl = TextEditingController(text: '${medicineToEdit?.quantity ?? 1}');
+    DateTime expDate = medicineToEdit?.expiryDate ?? DateTime.now().add(const Duration(days: 180));
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDlgState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Text(
+                medicineToEdit != null ? 'تعديل بيانات الدواء' : 'إضافة دواء جديد للصيدلية',
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(controller: tradeCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: 'الاسم التجاري')),
+                    TextField(controller: sciCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: 'الاسم العلمي')),
+                    TextField(controller: compCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: 'الشركة المصنعة')),
+                    TextField(controller: catCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: 'التصنيف / الفئة')),
+                    TextField(controller: barCtrl, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: 'رقم الباركود')),
+                    TextField(controller: qtyCtrl, keyboardType: TextInputType.number, textAlign: TextAlign.right, decoration: const InputDecoration(labelText: 'الكمية')),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: expDate,
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2035),
+                            );
+                            if (picked != null) {
+                              setDlgState(() => expDate = picked);
+                            }
+                          },
+                          child: const Text('تغيير التاريخ'),
+                        ),
+                        Text('تاريخ الانتهاء: ${DateFormat('yyyy-MM-dd').format(expDate)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                ElevatedButton(
+                  onPressed: () {
+                    if (tradeCtrl.text.trim().isEmpty) return;
+                    setState(() {
+                      if (medicineToEdit != null) {
+                        medicineToEdit.tradeName = tradeCtrl.text;
+                        medicineToEdit.scientificName = sciCtrl.text;
+                        medicineToEdit.companyName = compCtrl.text;
+                        medicineToEdit.category = catCtrl.text;
+                        medicineToEdit.barcode = barCtrl.text;
+                        medicineToEdit.quantity = int.tryParse(qtyCtrl.text) ?? 1;
+                        medicineToEdit.expiryDate = expDate;
+                      } else {
+                        _medicines.add(Medicine(
+                          id: DateTime.now().millisecondsSinceEpoch,
+                          tradeName: tradeCtrl.text,
+                          scientificName: sciCtrl.text,
+                          companyName: compCtrl.text,
+                          category: catCtrl.text,
+                          barcode: barCtrl.text,
+                          quantity: int.tryParse(qtyCtrl.text) ?? 1,
+                          expiryDate: expDate,
+                          alertThresholdDays: 60,
+                        ));
+                      }
+                    });
+                    Navigator.pop(ctx);
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F766E), foregroundColor: Colors.white),
+                  child: const Text('حفظ الدواء'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmDeleteMedicine(Medicine med) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('تأكيد الحذف', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text('هل أنت متأكد من حذف الدواء: ${med.tradeName}؟', textAlign: TextAlign.right),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          ElevatedButton(
+            onPressed: () {
+              setState(() => _medicines.remove(med));
+              Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openOfficialDisposalReportModal() {
+    final expiredList = _medicines.where((m) => m.analyze().status == ExpiryStatus.expired).toList();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: const [
+            Icon(Icons.print, color: Color(0xFF0F766E)),
+            Text('محضر إتلاف أدوية رسمي', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text('جمهورية العراق - وزارة الصحة / نقابة الصيادلة', style: TextStyle(fontSize: 10, color: Colors.grey)),
+              const Text('صيدلية الشفاء المركزية - محضر إتلاف منتهي الصلاحية', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              const Divider(),
+              if (expiredList.isEmpty)
+                const Text('لا توجد أدوية منتهية للإتلاف حالياً.')
+              else
+                ...expiredList.map((m) => Text('• ${m.tradeName} (الكمية: ${m.quantity})', style: const TextStyle(fontSize: 11))),
+              const SizedBox(height: 12),
+              const Text('توقيع الصيدلي المسؤول: د. أحمد الصيدلي ____________', style: TextStyle(fontSize: 10)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('تم إرسال محضر الإتلاف للطابعة بنجاح 🖨️')),
+              );
+            },
+            icon: const Icon(Icons.print, size: 16),
+            label: const Text('طباعة المحضر'),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F766E), foregroundColor: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openStaffManagementModal() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('إدارة حسابات الستاف والموظفين', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: const [
+            Text('كود انضمام كادر الصيدلية:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            SizedBox(height: 4),
+            Text('EXPIRO-STAFF-9941', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F766E), fontFamily: 'monospace')),
+            Divider(height: 20),
+            Text('1. ص. علي كريم (موظف كادر - نشط)', style: TextStyle(fontSize: 11)),
+            Text('2. ص. سارة محمد (موظف كادر - نشط)', style: TextStyle(fontSize: 11)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+        ],
+      ),
+    );
+  }
+
+  void _openPharmacyLicenseModal() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('بيانات الصيدلية وإجازة الممارسة', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: const [
+            Text('اسم الصيدلية: صيدلية الشفاء المركزية', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+            Text('رقم الإجازة الرسمية: 88492/بغداد', style: TextStyle(fontSize: 10, color: Colors.grey)),
+            SizedBox(height: 8),
+            Text('وثيقة الترخيص وممارسة المهنة محفوظة وموثقة في قاعدة البيانات السحابية.', style: TextStyle(fontSize: 10)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+        ],
+      ),
+    );
+  }
+
+  // ========================================================
   // البناء الكلي للواجهة (Build)
   // ========================================================
   @override
@@ -1864,7 +2324,7 @@ class _MainScreenState extends State<MainScreen> {
         top: false,
         child: Column(
           children: [
-            // الهايدر العلوي المتطابق
+            // الهايدر العلوي المنحني
             _buildExactHeader(),
 
             // المحتوى بناءً على التبويب النشط
@@ -1873,7 +2333,7 @@ class _MainScreenState extends State<MainScreen> {
                   ? RefreshIndicator(
                       color: const Color(0xFF0D9488),
                       onRefresh: () async {
-                        await Future.delayed(const Duration(milliseconds: 700));
+                        await Future.delayed(const Duration(milliseconds: 600));
                         setState(() {});
                       },
                       child: ListView(
@@ -1892,10 +2352,10 @@ class _MainScreenState extends State<MainScreen> {
                             Padding(
                               padding: const EdgeInsets.all(32),
                               child: Column(
-                                children: [
-                                  Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey[400]),
-                                  const SizedBox(height: 8),
-                                  const Text(
+                                children: const [
+                                  Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey),
+                                  SizedBox(height: 8),
+                                  Text(
                                     'لا توجد أدوية مطابقة للبحث أو الفلتر',
                                     style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
                                   ),
@@ -1919,6 +2379,334 @@ class _MainScreenState extends State<MainScreen> {
             // شريط التنقل السفلي المطابق
             _buildBottomNavigationBar(),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 11. لوحة تحكم مالك النظام (Admin Dashboard Widget)
+// ==========================================
+class AdminDashboardWidget extends StatefulWidget {
+  final bool isDarkMode;
+  final VoidCallback onToggleTheme;
+  final VoidCallback onBackToApp;
+
+  const AdminDashboardWidget({
+    super.key,
+    required this.isDarkMode,
+    required this.onToggleTheme,
+    required this.onBackToApp,
+  });
+
+  @override
+  State<AdminDashboardWidget> createState() => _AdminDashboardWidgetState();
+}
+
+class _AdminDashboardWidgetState extends State<AdminDashboardWidget> {
+  String _adminFilter = 'all'; // all, active, suspended
+  String _search = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDarkMode;
+
+    return Scaffold(
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            // ترويسة مالك النظام الخضراء الزمردية (مطابقة لقطة الشاشة)
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                  colors: [Color(0xFF0F766E), Color(0xFF047857)],
+                ),
+              ),
+              padding: const EdgeInsets.only(top: 40, bottom: 14, left: 14, right: 14),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // زر معاينة واجهة الأدوية وزر تسجيل الخروج
+                      Row(
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: widget.onBackToApp,
+                            icon: const Icon(Icons.storefront_outlined, size: 14),
+                            label: const Text('معاينة واجهة الأدوية', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white.withOpacity(0.2),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          IconButton(
+                            onPressed: widget.onBackToApp,
+                            icon: const Icon(Icons.logout, size: 18, color: Colors.white70),
+                            tooltip: 'تسجيل الخروج',
+                          ),
+                        ],
+                      ),
+
+                      // العنوان والشارة
+                      Row(
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: const [
+                              Text(
+                                'لوحة تحكم مالك النظام (Admin)',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
+                              Text(
+                                'إدارة الصيدليات المسجلة، الصلاحيات، ومراقبة التراخيص',
+                                style: TextStyle(color: Color(0xFFA7F3D0), fontSize: 9),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.shield, color: Colors.white, size: 18),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // المحتوى الرئيسي للوحة التحكم
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(14),
+                children: [
+                  // بطاقة المالك مع التاج الذهبي
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Icon(Icons.star, color: Color(0xFFF59E0B), size: 28),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: const [
+                            Text('مالك التطبيق (Admin)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text('رقم الهاتف المعتمد: 07829692579 | الدور: role: admin', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                            Text('حساب المالك مهيأ مسبقاً في Firestore بصلاحيات تحكم كاملة', style: TextStyle(fontSize: 9.5, color: Color(0xFF0F766E))),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // بطاقات الإحصائيات الـ 4
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildAdminKpiCard(title: 'إجمالي الحسابات المسجلة', count: 1, subtitle: 'صيدلية وصيدلي مسجل بقاعدة البيانات', color: const Color(0xFF0F766E)),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildAdminKpiCard(title: 'الحسابات النشطة والمفعلة', count: 1, subtitle: 'يمكنهم إدارة مخزونهم بنجاح', color: const Color(0xFF10B981)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildAdminKpiCard(title: 'إجازات ممارسة مرفقة', count: 0, subtitle: 'وثائق مشفرة ومحفوظة Base64', color: const Color(0xFF3B82F6)),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildAdminKpiCard(title: 'الحسابات الموقوفة', count: 0, subtitle: 'تم تعطيل دخولهم للصيدلية', color: const Color(0xFFEF4444)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // فلاتر التبويب: الكل (1), نشط فقط (1), موقوف (0)
+                  Row(
+                    children: [
+                      _buildAdminFilterTab('الكل (1)', 'all'),
+                      const SizedBox(width: 6),
+                      _buildAdminFilterTab('نشط فقط (1)', 'active'),
+                      const SizedBox(width: 6),
+                      _buildAdminFilterTab('موقوف (0)', 'suspended'),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // حقل البحث
+                  Container(
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: TextField(
+                      onChanged: (val) => setState(() => _search = val),
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(fontSize: 11.5),
+                      decoration: const InputDecoration(
+                        hintText: 'بحث بالاسم، الصيدلية، أو رقم الهاتف...',
+                        prefixIcon: Icon(Icons.search, size: 18, color: Colors.grey),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // قائمة الصيدليات والصيادلة
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text('قائمة الصيدليات والصيادلة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                        const Text('يمكنك تفعيل أو إيقاف أي حساب وتعيين كلمة مرور بديلة', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(color: const Color(0xFFCCFBF1), borderRadius: BorderRadius.circular(6)),
+                                        child: const Text('نشط ومعتمد', style: TextStyle(color: Color(0xFF0F766E), fontSize: 9, fontWeight: FontWeight.bold)),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(6)),
+                                        child: const Text('مالك النظام (Admin)', style: TextStyle(color: Color(0xFFB45309), fontSize: 9, fontWeight: FontWeight.bold)),
+                                      ),
+                                    ],
+                                  ),
+                                  const Text('مالك التطبيق (Admin)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              const Text('إدارة تطبيق Expiro المركزية', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                              const Text('07829692579  •  2026/10/25', style: TextStyle(fontSize: 9.5, color: Colors.grey, fontFamily: 'monospace')),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('تم إرسال رابط ضبط كلمة المرور إلى 07829692579')),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.key, size: 12),
+                                    label: const Text('ضبط كلمة المرور', style: TextStyle(fontSize: 10)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF0F766E),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  OutlinedButton(
+                                    onPressed: () {},
+                                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4)),
+                                    child: const Text('بدون إجازة', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminKpiCard({required String title, required int count, required String subtitle, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: widget.isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(title, textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+          const SizedBox(height: 4),
+          Text('$count', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: color)),
+          const SizedBox(height: 2),
+          Text(subtitle, textAlign: TextAlign.right, style: const TextStyle(fontSize: 8.5, color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminFilterTab(String label, String key) {
+    final isSelected = _adminFilter == key;
+    return InkWell(
+      onTap: () => setState(() => _adminFilter = key),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF0F766E) : (widget.isDarkMode ? const Color(0xFF1E293B) : Colors.white),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isSelected ? const Color(0xFF0F766E) : const Color(0xFFE2E8F0)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: isSelected ? Colors.white : (widget.isDarkMode ? Colors.white70 : Colors.black87),
+          ),
         ),
       ),
     );

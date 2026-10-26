@@ -13,7 +13,6 @@ import {
   onSnapshot,
   Unsubscribe 
 } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
 import { Medicine } from '../App';
 
 export const firebaseConfig = {
@@ -29,7 +28,6 @@ export const firebaseConfig = {
 // تهيئة تطبيق Firebase بشكل آمن ومنع تكرار التهيئة
 export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app);
-export const auth = getAuth(app);
 
 // رقم هاتف مالك النظام المعتمد
 export const ADMIN_PHONE = '07829692579';
