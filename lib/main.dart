@@ -589,6 +589,7 @@ class _MainScreenState extends State<MainScreen> {
   // الهايدر العلوي المنحني المتطابق (Curved Teal Header)
   // ========================================================
   Widget _buildExactHeader() {
+    final topPadding = MediaQuery.of(context).padding.top;
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -601,120 +602,276 @@ class _MainScreenState extends State<MainScreen> {
           bottomRight: Radius.circular(26),
         ),
       ),
-      padding: const EdgeInsets.only(top: 40, bottom: 18, left: 16, right: 16),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // الأيقونات اليسرى: الوضع الليلي + جرس التنبيهات
-              Row(
-                children: [
-                  IconButton(
+      padding: EdgeInsets.only(
+        top: topPadding > 0 ? topPadding + 6 : 38,
+        bottom: 16,
+        left: 14,
+        right: 14,
+      ),
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 1. الأيقونات اليسرى: الوضع الليلي + جرس التنبيهات
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.16),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
                     onPressed: widget.onToggleTheme,
                     icon: Icon(
                       widget.isDarkMode ? Icons.wb_sunny_rounded : Icons.nightlight_round,
                       color: Colors.white,
-                      size: 20,
+                      size: 19,
                     ),
                     tooltip: 'تبديل الوضع الليلي',
                   ),
-                  Stack(
-                    children: [
-                      IconButton(
+                ),
+                const SizedBox(width: 8),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.16),
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        constraints: const BoxConstraints(),
+                        padding: EdgeInsets.zero,
                         onPressed: () => setState(() => _activeTab = 4),
-                        icon: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 24),
+                        icon: const Icon(
+                          Icons.notifications_none_rounded,
+                          color: Colors.white,
+                          size: 21,
+                        ),
                         tooltip: 'التنبيهات',
                       ),
+                    ),
+                    if ((expiredCount + nearExpiryCount) > 0)
                       Positioned(
-                        right: 8,
-                        top: 8,
+                        top: -2,
+                        right: -2,
                         child: Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFE53935),
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE53935),
                             shape: BoxShape.circle,
+                            border: Border.all(color: const Color(0xFF0F766E), width: 1.5),
                           ),
-                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                          child: Text(
-                            '${expiredCount + nearExpiryCount}',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
+                          constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                          child: Center(
+                            child: Text(
+                              '${expiredCount + nearExpiryCount}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                height: 1,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
+            ),
 
-              // المنتصف: اسم التطبيق Expiro
-              Column(
-                children: const [
-                  Text(
-                    'Expiro',
+            // 2. المنتصف: اسم التطبيق Expiro وشعاره
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Text(
+                      'Expiro',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5,
+                      ),
+                      maxLines: 1,
+                    ),
+                    SizedBox(height: 1),
+                    Text(
+                      'إدارة تواريخ صلاحية الأدوية',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFFCCFBF1),
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // 3. اليمين: شارة ص + مرحبا إدارة تطبيق Expiro المركزية
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Text(
+                      'مرحبا',
+                      style: TextStyle(
+                        color: Color(0xFFCCFBF1),
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'إدارة تطبيق Expiro المركزية',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'ص',
                     style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 19,
+                      color: Color(0xFF0F766E),
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
+                      fontSize: 17,
                     ),
                   ),
-                  SizedBox(height: 2),
-                  Text(
-                    'إدارة تواريخ صلاحية الأدوية',
-                    style: TextStyle(
-                      color: Color(0xFFCCFBF1),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-              // اليمين: شارة ص + مرحبا إدارة تطبيق Expiro المركزية
-              Row(
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+  // ========================================================
+  // الهايدر المخصص للأقسام الفرعية (الخسائر، الدعم، حسابي، التنبيهات)
+  // مطابق تماماً للشكل في الصورة رقم 2
+  // ========================================================
+  Widget _buildSectionHeader({
+    required String title,
+    required IconData icon,
+  }) {
+    final topPadding = MediaQuery.of(context).padding.top;
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+          colors: [Color(0xFF0F766E), Color(0xFF0D9488)],
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(26),
+          bottomRight: Radius.circular(26),
+        ),
+      ),
+      padding: EdgeInsets.only(
+        top: topPadding > 0 ? topPadding + 6 : 38,
+        bottom: 16,
+        left: 14,
+        right: 14,
+      ),
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 1. اليسار: أيقونة القسم الدائرية شبه الشفافة
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withOpacity(0.25)),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, color: Colors.white, size: 19),
+            ),
+
+            // 2. المنتصف: عنوان القسم عريض وبالأبيض
+            Expanded(
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+
+            // 3. اليمين: زر رجوع أبيض ناصع مع سهم وتنسيق فيروزي مطابق للصورة رقم 2
+            Material(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              elevation: 0,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => setState(() => _activeTab = 0),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: const [
                       Text(
-                        'مرحبا',
-                        style: TextStyle(color: Color(0xFFCCFBF1), fontSize: 9.5, fontWeight: FontWeight.bold),
+                        'رجوع',
+                        style: TextStyle(
+                          color: Color(0xFF0D9488),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
-                      Text(
-                        'إدارة تطبيق Expiro المركزية',
-                        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                      SizedBox(width: 4),
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        color: Color(0xFF0D9488),
+                        size: 15,
                       ),
                     ],
                   ),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: const Text(
-                      'ص',
-                      style: TextStyle(
-                        color: Color(0xFF0F766E),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 17,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1155,33 +1312,10 @@ class _MainScreenState extends State<MainScreen> {
     }).toList();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.only(top: 8, bottom: 20),
+      padding: const EdgeInsets.only(top: 12, bottom: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // شريط العنوان مع زر رجوع
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () => setState(() => _activeTab = 0),
-                  icon: const Icon(Icons.arrow_back, size: 14),
-                  label: const Text('رجوع', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F766E),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  ),
-                ),
-                const Text('الخسائر', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(width: 40),
-              ],
-            ),
-          ),
-
           // بطاقة إحصائيات الخسائر والمخاطر
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -1324,32 +1458,10 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.only(top: 8, bottom: 20),
+      padding: const EdgeInsets.only(top: 12, bottom: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // شريط العنوان مع زر رجوع
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () => setState(() => _activeTab = 0),
-                  icon: const Icon(Icons.arrow_back, size: 14),
-                  label: const Text('رجوع', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F766E),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  ),
-                ),
-                const Text('التنبيهات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(width: 40),
-              ],
-            ),
-          ),
 
           // فلاتر التنبيهات الثلاثية (كافة التنبيهات 4, منتهية 2, وشيكة 2)
           Padding(
@@ -1404,32 +1516,9 @@ class _MainScreenState extends State<MainScreen> {
     final isDark = widget.isDarkMode;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.only(top: 8, bottom: 20),
+      padding: const EdgeInsets.only(top: 12, bottom: 20),
       child: Column(
         children: [
-          // شريط العنوان مع زر رجوع
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () => setState(() => _activeTab = 0),
-                  icon: const Icon(Icons.arrow_back, size: 14),
-                  label: const Text('رجوع', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F766E),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  ),
-                ),
-                const Text('الدعم', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(width: 40),
-              ],
-            ),
-          ),
-
           // بطاقة مركز الدعم
           Container(
             margin: const EdgeInsets.all(16),
@@ -1572,32 +1661,9 @@ class _MainScreenState extends State<MainScreen> {
     final isDark = widget.isDarkMode;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.only(top: 8, bottom: 20),
+      padding: const EdgeInsets.only(top: 12, bottom: 20),
       child: Column(
         children: [
-          // شريط العنوان مع زر رجوع
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () => setState(() => _activeTab = 0),
-                  icon: const Icon(Icons.arrow_back, size: 14),
-                  label: const Text('رجوع', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F766E),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  ),
-                ),
-                const Text('حسابي', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(width: 40),
-              ],
-            ),
-          ),
-
           // بطاقة ملف الصيدلي المالك
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -2324,8 +2390,17 @@ class _MainScreenState extends State<MainScreen> {
         top: false,
         child: Column(
           children: [
-            // الهايدر العلوي المنحني
-            _buildExactHeader(),
+            // الهايدر العلوي المنحني الديناميكي (مطابق 100% للصورة رقم 2)
+            if (_activeTab == 0)
+              _buildExactHeader()
+            else if (_activeTab == 1)
+              _buildSectionHeader(title: 'الخسائر', icon: Icons.trending_down)
+            else if (_activeTab == 2)
+              _buildSectionHeader(title: 'الدعم', icon: Icons.headphones_rounded)
+            else if (_activeTab == 3)
+              _buildSectionHeader(title: 'حسابي', icon: Icons.person_rounded)
+            else
+              _buildSectionHeader(title: 'التنبيهات', icon: Icons.notifications_none_rounded),
 
             // المحتوى بناءً على التبويب النشط
             Expanded(
