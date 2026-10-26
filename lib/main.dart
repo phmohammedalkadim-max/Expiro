@@ -1207,10 +1207,10 @@ class _MainScreenState extends State<MainScreen> {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: Colors.rose.withOpacity(0.1),
+                        color: const Color(0xFFE11D48).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.trending_down, color: Colors.rose, size: 20),
+                      child: const Icon(Icons.trending_down, color: Color(0xFFE11D48), size: 20),
                     ),
                   ],
                 ),
