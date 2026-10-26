@@ -1,7 +1,8 @@
 import 'dart:async';
+import 'dart:ui' as ui show TextDirection;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -609,7 +610,7 @@ class _MainScreenState extends State<MainScreen> {
         right: 14,
       ),
       child: Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: ui.TextDirection.ltr,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -807,7 +808,7 @@ class _MainScreenState extends State<MainScreen> {
         right: 14,
       ),
       child: Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: ui.TextDirection.ltr,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
