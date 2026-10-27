@@ -15,19 +15,21 @@ import {
 } from 'firebase/firestore';
 import { Medicine } from '../App';
 
+import firebaseConfigData from '../../firebase-applet-config.json';
+
 export const firebaseConfig = {
-  apiKey: "AIzaSyA7e8x8iTG790o1umWfGQY8pGMwH12pf2Y",
-  authDomain: "expiro-app-f9063.firebaseapp.com",
-  projectId: "expiro-app-f9063",
-  storageBucket: "expiro-app-f9063.firebasestorage.app",
-  messagingSenderId: "311495130006",
-  appId: "1:311495130006:web:4ldc22b5e707f1fcb13bb7",
-  measurementId: "G-RTZFBBCZC0"
+  apiKey: firebaseConfigData.apiKey,
+  authDomain: firebaseConfigData.authDomain,
+  projectId: firebaseConfigData.projectId,
+  storageBucket: firebaseConfigData.storageBucket,
+  messagingSenderId: firebaseConfigData.messagingSenderId,
+  appId: firebaseConfigData.appId,
 };
 
 // تهيئة تطبيق Firebase بشكل آمن ومنع تكرار التهيئة
 export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const db = getFirestore(app);
+export const db = getFirestore(app, firebaseConfigData.firestoreDatabaseId || '(default)');
+
 
 // رقم هاتف مالك النظام المعتمد
 export const ADMIN_PHONE = '07829692579';

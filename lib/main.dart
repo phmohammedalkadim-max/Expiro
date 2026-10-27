@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:ui' as ui show TextDirection;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:intl/intl.dart' hide TextDirection;
+import 'package:intl/intl.dart' show DateFormat;
+
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1704,55 +1704,6 @@ class _MainScreenState extends State<MainScreen> {
       padding: const EdgeInsets.only(top: 12, bottom: 20),
       child: Column(
         children: [
-          // بطاقة ملف الصيدلي المالك
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // الشارة
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFCCFBF1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text('مدير الصيدلية (Admin)', style: TextStyle(color: Color(0xFF0F766E), fontSize: 9.5, fontWeight: FontWeight.bold)),
-                ),
-                // الاسم والتفاصيل
-                Row(
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: const [
-                        Text('ص. مالك التطبيق (Admin)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        Text('إدارة تطبيق Expiro المركزية', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                        Text('رقم الهاتف : 07829692579', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                      ],
-                    ),
-                    const SizedBox(width: 12),
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(colors: [Color(0xFF0F766E), Color(0xFF0D9488)]),
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text('ص', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
           // صلاحيات وإدارة المدير
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1774,13 +1725,6 @@ class _MainScreenState extends State<MainScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                // الانتقال إلى لوحة تحكم مالك النظام (Admin Dashboard)
-                _buildActionTile(
-                  icon: Icons.admin_panel_settings_outlined,
-                  title: 'الانتقال إلى لوحة تحكم مالك النظام (Admin Dashboard)',
-                  color: const Color(0xFFD97706),
-                  onTap: widget.onShowAdmin,
-                ),
                 _buildActionTile(
                   icon: Icons.badge_outlined,
                   title: 'بيانات الصيدلية وإجازة الممارسة',
@@ -1798,59 +1742,6 @@ class _MainScreenState extends State<MainScreen> {
                   title: 'محضر الإتلاف الرسمي للأدوية',
                   color: const Color(0xFF0F766E),
                   onTap: _openOfficialDisposalReportModal,
-                ),
-                _buildActionTile(
-                  icon: Icons.swap_horiz_rounded,
-                  title: 'تبديل الدور تجريبياً (مدير / كادر)',
-                  subtitle: 'الحالي: ${_userRole == 'admin' ? 'مدير' : 'كادر'}',
-                  color: const Color(0xFF0F766E),
-                  onTap: () {
-                    setState(() {
-                      _userRole = _userRole == 'admin' ? 'staff' : 'admin';
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('تم تبديل الدور إلى: ${_userRole == 'admin' ? 'مدير الصيدلية' : 'موظف كادر'}')),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          // إعدادات التطبيق
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                const Text('إعدادات التطبيق', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                const SizedBox(height: 10),
-                SwitchListTile(
-                  title: const Text('الوضع المظلم (Dark Mode)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  value: widget.isDarkMode,
-                  activeColor: const Color(0xFF0F766E),
-                  onChanged: (val) => widget.onToggleTheme(),
-                ),
-                const Divider(),
-                ListTile(
-                  title: const Text('الشاشة الترحيبية الافتتاحية', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('معاينة حركة الشعار وشاشة البداية الرسمية', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                  trailing: ElevatedButton(
-                    onPressed: widget.onShowSplash,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0F766E),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    ),
-                    child: const Text('معاينة', style: TextStyle(fontSize: 10)),
-                  ),
                 ),
               ],
             ),

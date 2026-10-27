@@ -1243,32 +1243,6 @@ export default function App() {
   const renderProfilePage = () => {
     return (
       <div className="space-y-3 animate-in fade-in duration-200">
-        <div className={`p-4 rounded-2xl border shadow-xs ${
-          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-[#F8FAFC] border-[#E2E8F0]'
-        }`}>
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-teal-700 to-teal-600 text-white font-black text-lg flex items-center justify-center shadow-md">
-              ص
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
-                  ص. {currentUser.name}
-                </h3>
-                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                  currentUser.role === 'admin' 
-                    ? 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300' 
-                    : 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
-                }`}>
-                  {currentUser.role === 'admin' ? 'مدير الصيدلية (Admin)' : 'كادر صيدلي (Staff)'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">{pharmacy.name}</p>
-              <p className="text-[11px] text-slate-400 font-mono mt-0.5">رقم الهاتف: {currentUser.phone}</p>
-            </div>
-          </div>
-        </div>
-
         <div className={`p-4 rounded-2xl border shadow-xs space-y-2.5 ${
           isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-[#F8FAFC] border-[#E2E8F0]'
         }`}>
@@ -1285,19 +1259,6 @@ export default function App() {
           </div>
 
           <div className="space-y-1.5">
-            {authenticatedUser?.role === 'admin' && (
-              <button
-                onClick={() => setAdminViewMode('dashboard')}
-                className="w-full p-2.5 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 text-right flex items-center justify-between text-xs transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-amber-600" />
-                  <span className="font-extrabold text-amber-900 dark:text-amber-200">الانتقال إلى لوحة تحكم مالك النظام (Admin Dashboard)</span>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-amber-600 rotate-180" />
-              </button>
-            )}
-
             <button
               onClick={() => {
                 if (currentUser.role === 'admin') setIsLicenseModalOpen(true);
@@ -1339,63 +1300,6 @@ export default function App() {
               </div>
               <ArrowRight className="w-3.5 h-3.5 text-slate-400 rotate-180" />
             </button>
-
-            <button
-              onClick={toggleRoleDemo}
-              className="w-full p-2.5 rounded-xl border border-[#E2E8F0] dark:border-slate-800 bg-teal-50/50 dark:bg-teal-950/30 hover:bg-teal-100/50 text-right flex items-center justify-between text-xs transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <RefreshCw className="w-4 h-4 text-teal-700 dark:text-teal-400" />
-                <span className="font-bold text-teal-900 dark:text-teal-200">تبديل الدور تجريبياً (مدير / كادر)</span>
-              </div>
-              <span className="text-[10px] text-teal-700 dark:text-teal-300 font-bold">
-                الحالي: {currentUser.role === 'admin' ? 'مدير' : 'كادر'}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        <div className={`p-4 rounded-2xl border shadow-xs space-y-2.5 ${
-          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-[#F8FAFC] border-[#E2E8F0]'
-        }`}>
-          <h4 className="font-extrabold text-xs text-slate-900 dark:text-white">إعدادات التطبيق</h4>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between py-1">
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">الوضع المظلم (Dark Mode)</span>
-              <button
-                onClick={() => setIsDarkMode(!isDarkMode)}
-                className={`w-11 h-6 rounded-full transition-colors p-0.5 flex items-center ${
-                  isDarkMode ? 'bg-teal-600 justify-end' : 'bg-slate-200 justify-start'
-                }`}
-              >
-                <div className="w-5 h-5 rounded-full bg-white shadow-xs" />
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-[#E2E8F0] dark:border-slate-800">
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">المؤثرات الصوتية</span>
-              <button
-                onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`w-11 h-6 rounded-full transition-colors p-0.5 flex items-center ${
-                  soundEnabled ? 'bg-teal-600 justify-end' : 'bg-slate-200 justify-start'
-                }`}
-              >
-                <div className="w-5 h-5 rounded-full bg-white shadow-xs" />
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-[#E2E8F0] dark:border-slate-800">
-              <div>
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">الشاشة الترحيبية الافتتاحية</span>
-                <span className="text-[10px] text-slate-400">معاينة حركة الأيقونة الرسمية وشاشة البداية</span>
-              </div>
-              <button
-                onClick={() => setShowSplash(true)}
-                className="px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-xs font-bold hover:bg-teal-100 transition-colors shadow-xs active:scale-95"
-              >
-                معاينة الشاشة
-              </button>
-            </div>
           </div>
         </div>
 

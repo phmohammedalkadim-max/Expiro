@@ -1,0 +1,70 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile for pharmacy managers and staff members",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Full name of the user" },
+        "email": { "type": "string", "description": "User email address" },
+        "phone": { "type": "string", "description": "Contact phone number" },
+        "role": { "type": "string", "enum": ["admin", "staff"], "description": "Account role" },
+        "pharmacyId": { "type": "string", "description": "ID of the associated pharmacy" },
+        "pharmacyName": { "type": "string", "description": "Name of the pharmacy" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of creation" }
+      },
+      "required": ["uid", "name", "email", "role", "pharmacyId"]
+    },
+    "Pharmacy": {
+      "title": "Pharmacy",
+      "description": "Pharmacy store entity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Pharmacy ID" },
+        "name": { "type": "string", "description": "Pharmacy trade name" },
+        "licenseNumber": { "type": "string", "description": "Official syndicate license number" },
+        "phone": { "type": "string", "description": "Pharmacy phone number" },
+        "ownerId": { "type": "string", "description": "User UID of the pharmacy owner" },
+        "joinCode": { "type": "string", "description": "Secret join code for staff to register" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of creation" }
+      },
+      "required": ["id", "name", "ownerId", "joinCode"]
+    },
+    "Medicine": {
+      "title": "Medicine",
+      "description": "Pharmaceutical product tracked for expiration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Medicine unique identifier" },
+        "tradeName": { "type": "string", "description": "Commercial drug name" },
+        "scientificName": { "type": "string", "description": "Generic active pharmaceutical ingredient" },
+        "companyName": { "type": "string", "description": "Manufacturer name" },
+        "category": { "type": "string", "description": "Therapeutic class" },
+        "barcode": { "type": "string", "description": "EAN/GTIN barcode number" },
+        "expiryDate": { "type": "string", "description": "Expiry date YYYY-MM-DD" },
+        "alertThresholdDays": { "type": "integer", "description": "Days before expiry to raise alert" },
+        "quantity": { "type": "integer", "description": "Available stock package count" },
+        "notes": { "type": "string", "description": "Clinical or storage notes" },
+        "ownerId": { "type": "string", "description": "User UID who added the item" },
+        "pharmacyId": { "type": "string", "description": "Pharmacy branch ID" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of creation" }
+      },
+      "required": ["id", "tradeName", "barcode", "expiryDate", "ownerId", "pharmacyId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "entities/User" },
+      "description": "Individual user accounts with role and pharmacy binding"
+    },
+    "/pharmacies/{pharmacyId}": {
+      "schema": { "$ref": "entities/Pharmacy" },
+      "description": "Pharmacies registered in Expiro"
+    },
+    "/medicines/{medicineId}": {
+      "schema": { "$ref": "entities/Medicine" },
+      "description": "Medicines repository tracked by pharmacists"
+    }
+  }
+}
