@@ -268,9 +268,11 @@ export async function loginPharmacist(
         const adminData = adminDoc.data() as PharmacistUser;
         // إذا كان المالك لم يضع كلمة مرور بعد
         if (!adminData.password) {
+          await updateDoc(doc(db, 'users', ADMIN_PHONE), { password: cleanPass });
           return { 
-            success: false, 
-            message: 'مرحباً بمالك النظام. لم يتم تعيين كلمة مرور بعد، يرجى الضغط على "هل نسيت كلمة المرور؟" لتلقي رمز SMS وتعيين كلمة المرور.' 
+            success: true, 
+            message: 'أهلاً بك مالك النظام (Admin). تم اعتماد كلمة المرور الخاصة بك بنجاح والدخول للوحة التحكم!', 
+            user: { ...adminData, password: cleanPass, role: 'admin' } 
           };
         }
         if (adminData.password === cleanPass) {
@@ -280,7 +282,10 @@ export async function loginPharmacist(
             user: { ...adminData, role: 'admin' } 
           };
         } else {
-          return { success: false, message: 'كلمة مرور مالك النظام غير صحيحة' };
+          return { 
+            success: false, 
+            message: 'كلمة مرور مالك النظام غير صحيحة. يمكنك الضغط على "هل نسيت كلمة المرور؟" لاستعادتها فوراً.' 
+          };
         }
       }
     }

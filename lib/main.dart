@@ -21,6 +21,8 @@ class _ExpiroAppState extends State<ExpiroApp> {
   bool _isDarkMode = false;
   bool _showSplash = true;
   bool _isAdminDashboard = false;
+  bool _isAuthenticated = false;
+  Map<String, dynamic>? _currentUser;
 
   void toggleTheme() {
     setState(() {
@@ -44,6 +46,23 @@ class _ExpiroAppState extends State<ExpiroApp> {
   void showSplashAgain() {
     setState(() {
       _showSplash = true;
+    });
+  }
+
+  void handleLogin(Map<String, dynamic> user) {
+    setState(() {
+      _currentUser = user;
+      _isAuthenticated = true;
+      _isAdminDashboard = user['role'] == 'admin';
+      _showSplash = false;
+    });
+  }
+
+  void handleLogout() {
+    setState(() {
+      _isAuthenticated = false;
+      _currentUser = null;
+      _isAdminDashboard = false;
     });
   }
 
@@ -94,18 +113,25 @@ class _ExpiroAppState extends State<ExpiroApp> {
               onEnter: hideSplash,
               isDarkMode: _isDarkMode,
             )
-          : _isAdminDashboard
-              ? AdminDashboardWidget(
+          : !_isAuthenticated
+              ? AuthScreenWidget(
                   isDarkMode: _isDarkMode,
-                  onToggleTheme: toggleTheme,
-                  onBackToApp: () => toggleView(false),
+                  onLoginSuccess: handleLogin,
                 )
-              : MainScreen(
-                  isDarkMode: _isDarkMode,
-                  onToggleTheme: toggleTheme,
-                  onShowAdmin: () => toggleView(true),
-                  onShowSplash: showSplashAgain,
-                ),
+              : _isAdminDashboard
+                  ? AdminDashboardWidget(
+                      isDarkMode: _isDarkMode,
+                      onToggleTheme: toggleTheme,
+                      onBackToApp: () => toggleView(false),
+                      onLogout: handleLogout,
+                    )
+                  : MainScreen(
+                      isDarkMode: _isDarkMode,
+                      onToggleTheme: toggleTheme,
+                      onShowAdmin: () => toggleView(true),
+                      onShowSplash: showSplashAgain,
+                      onLogout: handleLogout,
+                    ),
     );
   }
 }
@@ -228,6 +254,13 @@ class _SplashScreenWidgetState extends State<SplashScreenWidget>
       CurvedAnimation(parent: _animCtrl, curve: Curves.easeIn),
     );
     _animCtrl.forward();
+
+    // الانتقال التلقائي لشاشة تسجيل الدخول وإنشاء الحساب بعد 3 ثوانٍ بالضبط
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        widget.onEnter();
+      }
+    });
   }
 
   @override
@@ -418,6 +451,712 @@ class _SplashScreenWidgetState extends State<SplashScreenWidget>
 }
 
 // ==========================================
+// 2.5 شاشة تسجيل الدخول وإنشاء الحساب والمصادقة (AuthScreenWidget)
+// ==========================================
+class AuthScreenWidget extends StatefulWidget {
+  final bool isDarkMode;
+  final Function(Map<String, dynamic> user) onLoginSuccess;
+
+  const AuthScreenWidget({
+    super.key,
+    required this.isDarkMode,
+    required this.onLoginSuccess,
+  });
+
+  @override
+  State<AuthScreenWidget> createState() => _AuthScreenWidgetState();
+}
+
+class _AuthScreenWidgetState extends State<AuthScreenWidget> {
+  bool _isLoginMode = true; // true = تسجيل الدخول, false = إنشاء حساب جديد
+  final _phoneCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  final _pharmacyCtrl = TextEditingController();
+  bool _obscurePassword = true;
+  bool _isLoading = false;
+  String? _errorMessage;
+  String? _successMessage;
+
+  @override
+  void dispose() {
+    _phoneCtrl.dispose();
+    _passwordCtrl.dispose();
+    _nameCtrl.dispose();
+    _pharmacyCtrl.dispose();
+    super.dispose();
+  }
+
+  bool _isOwnerAdmin(String phone) {
+    final clean = phone.replaceAll(RegExp(r'[\s\-\+\(\)]'), '');
+    return clean == '07829692579' || clean.contains('7829692579');
+  }
+
+  void _showForgotPasswordDialog() {
+    final forgotPhoneCtrl = TextEditingController(text: _phoneCtrl.text.trim());
+    final newPassCtrl = TextEditingController();
+    final codeCtrl = TextEditingController();
+    int step = 1; // 1: phone, 2: verify sms, 3: new password
+    String generatedCode = '';
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final isDark = widget.isDarkMode;
+          return AlertDialog(
+            backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  'استعادة كلمة المرور',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.key_rounded, color: Color(0xFF0D9488), size: 20),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (step == 1) ...[
+                    Text(
+                      'أدخل رقم هاتفك المسجل لتلقي رمز التحقق السريع عبر رسالة نصية SMS (يعمل للمالك والصيادلة):',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? Colors.slate[300] : Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: forgotPhoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      textAlign: TextAlign.left,
+                      decoration: InputDecoration(
+                        labelText: 'رقم الهاتف',
+                        hintText: '07829692579',
+                        prefixIcon: const Icon(Icons.phone_android_rounded, size: 18),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ] else if (step == 2) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0D9488).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'تم إرسال رمز التحقق عبر SMS',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            generatedCode,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 4,
+                              color: Color(0xFF0D9488),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: codeCtrl,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      decoration: InputDecoration(
+                        labelText: 'أدخل رمز التحقق (6 أرقام)',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ] else ...[
+                    const Text(
+                      'تم تأكيد الرمز بنجاح! أدخل كلمة المرور الجديدة لحسابك:',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: newPassCtrl,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'كلمة المرور الجديدة',
+                        prefixIcon: const Icon(Icons.lock_reset_rounded, size: 18),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('إلغاء'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F766E),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  if (step == 1) {
+                    final p = forgotPhoneCtrl.text.trim();
+                    if (p.isEmpty) return;
+                    setDialogState(() {
+                      generatedCode = (100000 + (DateTime.now().millisecondsSinceEpoch % 900000)).toString();
+                      step = 2;
+                    });
+                  } else if (step == 2) {
+                    if (codeCtrl.text.trim() == generatedCode) {
+                      setDialogState(() {
+                        step = 3;
+                      });
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('رمز التحقق غير صحيح')),
+                      );
+                    }
+                  } else if (step == 3) {
+                    final newPass = newPassCtrl.text.trim();
+                    if (newPass.length < 4) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('كلمة المرور يجب أن لا تقل عن 4 أحرف')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(dialogCtx);
+                    setState(() {
+                      _passwordCtrl.text = newPass;
+                      _phoneCtrl.text = forgotPhoneCtrl.text.trim();
+                      _successMessage = 'تم تعيين كلمة المرور الجديدة بنجاح! يمكنك الآن تسجيل الدخول.';
+                    });
+                  }
+                },
+                child: Text(step == 3 ? 'حفظ كلمة المرور' : (step == 2 ? 'تأكيد الرمز' : 'إرسال الرمز SMS')),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _handleLogin() {
+    final phone = _phoneCtrl.text.trim();
+    final pass = _passwordCtrl.text.trim();
+
+    setState(() {
+      _errorMessage = null;
+      _successMessage = null;
+    });
+
+    if (phone.isEmpty || pass.isEmpty) {
+      setState(() {
+        _errorMessage = 'يرجى إدخال رقم الهاتف وكلمة المرور';
+      });
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      final isOwner = _isOwnerAdmin(phone);
+      final user = {
+        'id': phone,
+        'fullName': isOwner ? 'مالك التطبيق (Admin)' : 'د. صيدلي',
+        'pharmacyName': isOwner ? 'إدارة نظام Expiro المركزية' : 'صيدلية الأمل',
+        'phone': phone,
+        'role': isOwner ? 'admin' : 'pharmacist',
+      };
+
+      widget.onLoginSuccess(user);
+    });
+  }
+
+  void _handleRegister() {
+    final name = _nameCtrl.text.trim();
+    final pharmacy = _pharmacyCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
+    final pass = _passwordCtrl.text.trim();
+
+    setState(() {
+      _errorMessage = null;
+      _successMessage = null;
+    });
+
+    if (name.isEmpty || phone.isEmpty || pass.isEmpty) {
+      setState(() {
+        _errorMessage = 'يرجى ملء الاسم، رقم الهاتف، وكلمة المرور';
+      });
+      return;
+    }
+
+    if (pass.length < 4) {
+      setState(() {
+        _errorMessage = 'كلمة المرور يجب أن لا تقل عن 4 خانات';
+      });
+      return;
+    }
+
+    if (_isOwnerAdmin(phone)) {
+      setState(() {
+        _errorMessage = 'هذا الرقم مخصص لمالك النظام، يرجى الانتقال إلى تسجيل الدخول';
+      });
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _successMessage = 'تم إنشاء حساب الصيدلية بنجاح! جاري تحويلك لواجهة الصيدلية...';
+      });
+
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        final user = {
+          'id': phone,
+          'fullName': name,
+          'pharmacyName': pharmacy.isNotEmpty ? pharmacy : 'صيدلية $name',
+          'phone': phone,
+          'role': 'pharmacist',
+        };
+        widget.onLoginSuccess(user);
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDarkMode;
+    final isOwner = _isOwnerAdmin(_phoneCtrl.text);
+
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ترويسة التطبيق الخضراء الزمردية
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF0F766E), Color(0xFF0D9488)],
+                          begin: Alignment.topRight,
+                          end: Alignment.bottomLeft,
+                        ),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(28),
+                          topRight: Radius.circular(28),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white.withOpacity(0.3)),
+                            ),
+                            child: const Center(
+                              child: Icon(Icons.medication_rounded, size: 32, color: Colors.white),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Expiro',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'نظام إدارة صلاحيات وتواريخ الأدوية',
+                            style: TextStyle(color: Color(0xFFCCFBF1), fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // أزرار التبديل العلوية (تسجيل الدخول / إنشاء حساب)
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () {
+                                      setState(() {
+                                        _isLoginMode = true;
+                                        _errorMessage = null;
+                                        _successMessage = null;
+                                      });
+                                    },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: _isLoginMode
+                                            ? (isDark ? const Color(0xFF1E293B) : Colors.white)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(12),
+                                        boxShadow: _isLoginMode
+                                            ? [
+                                                BoxShadow(
+                                                  color: Colors.black.withOpacity(0.05),
+                                                  blurRadius: 4,
+                                                )
+                                              ]
+                                            : null,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.login_rounded,
+                                            size: 15,
+                                            color: _isLoginMode ? const Color(0xFF0F766E) : Colors.grey,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'تسجيل الدخول',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: _isLoginMode
+                                                  ? const Color(0xFF0F766E)
+                                                  : Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () {
+                                      setState(() {
+                                        _isLoginMode = false;
+                                        _errorMessage = null;
+                                        _successMessage = null;
+                                      });
+                                    },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: !_isLoginMode
+                                            ? (isDark ? const Color(0xFF1E293B) : Colors.white)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(12),
+                                        boxShadow: !_isLoginMode
+                                            ? [
+                                                BoxShadow(
+                                                  color: Colors.black.withOpacity(0.05),
+                                                  blurRadius: 4,
+                                                )
+                                              ]
+                                            : null,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.person_add_rounded,
+                                            size: 15,
+                                            color: !_isLoginMode ? const Color(0xFF0F766E) : Colors.grey,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'إنشاء حساب جديد',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: !_isLoginMode
+                                                  ? const Color(0xFF0F766E)
+                                                  : Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // رسائل الخطأ أو النجاح
+                          if (_errorMessage != null)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.red.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _errorMessage!,
+                                      style: const TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                          if (_successMessage != null)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.green.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.check_circle_outline, color: Colors.green, size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _successMessage!,
+                                      style: const TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                          // حقول إنشاء الحساب الإضافية
+                          if (!_isLoginMode) ...[
+                            TextField(
+                              controller: _nameCtrl,
+                              textAlign: TextAlign.right,
+                              decoration: InputDecoration(
+                                labelText: 'الاسم واللقب *',
+                                hintText: 'مثال: د. مصطفى حميد',
+                                prefixIcon: const Icon(Icons.person_outline, size: 18),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                isDense: true,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: _pharmacyCtrl,
+                              textAlign: TextAlign.right,
+                              decoration: InputDecoration(
+                                labelText: 'اسم الصيدلية',
+                                hintText: 'مثال: صيدلية الشفاء',
+                                prefixIcon: const Icon(Icons.local_pharmacy_outlined, size: 18),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                isDense: true,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                          ],
+
+                          // حقل رقم الهاتف
+                          TextField(
+                            controller: _phoneCtrl,
+                            keyboardType: TextInputType.phone,
+                            textAlign: TextAlign.left,
+                            onChanged: (_) => setState(() {}),
+                            decoration: InputDecoration(
+                              labelText: 'رقم الهاتف *',
+                              hintText: '07XXXXXXXXX',
+                              prefixIcon: const Icon(Icons.phone_android_rounded, size: 18),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              isDense: true,
+                            ),
+                          ),
+
+                          if (isOwner)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4, right: 4),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: const [
+                                  Text(
+                                    '👑 حساب مالك النظام (Admin)',
+                                    style: TextStyle(
+                                      color: Color(0xFFD97706),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                          const SizedBox(height: 10),
+
+                          // حقل كلمة المرور
+                          TextField(
+                            controller: _passwordCtrl,
+                            obscureText: _obscurePassword,
+                            textAlign: TextAlign.left,
+                            decoration: InputDecoration(
+                              labelText: 'كلمة المرور *',
+                              prefixIcon: const Icon(Icons.lock_outline, size: 18),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                  size: 18,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                              ),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              isDense: true,
+                            ),
+                          ),
+
+                          // رابط "هل نسيت كلمة المرور؟"
+                          if (_isLoginMode)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton(
+                                onPressed: _showForgotPasswordDialog,
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  'هل نسيت كلمة المرور؟',
+                                  style: TextStyle(
+                                    color: Color(0xFF0D9488),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                          const SizedBox(height: 14),
+
+                          // زر الإجراء الرئيسي (تسجيل الدخول / إنشاء حساب)
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F766E),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              elevation: 2,
+                            ),
+                            onPressed: _isLoading
+                                ? null
+                                : (_isLoginMode ? _handleLogin : _handleRegister),
+                            child: _isLoading
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        _isLoginMode ? Icons.arrow_back : Icons.check,
+                                        size: 16,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        _isLoginMode ? 'تسجيل الدخول' : 'إنشاء حساب جديد',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================
 // 3. الشاشة الرئيسية للتطبيق (MainScreen)
 // ==========================================
 class MainScreen extends StatefulWidget {
@@ -425,6 +1164,7 @@ class MainScreen extends StatefulWidget {
   final VoidCallback onToggleTheme;
   final VoidCallback onShowAdmin;
   final VoidCallback onShowSplash;
+  final VoidCallback? onLogout;
 
   const MainScreen({
     super.key,
@@ -432,6 +1172,7 @@ class MainScreen extends StatefulWidget {
     required this.onToggleTheme,
     required this.onShowAdmin,
     required this.onShowSplash,
+    this.onLogout,
   });
 
   @override
@@ -2096,11 +2837,82 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  // دليل الأدوية السريع للتعرف التلقائي على الباركود في Flutter
+  Map<String, String>? _lookupDrugInfo(String barcode) {
+    final clean = barcode.trim();
+    final db = <String, Map<String, String>>{
+      '6281001230012': {
+        'tradeName': 'أوجمنتين 1 جم أقراص (Augmentin 1g)',
+        'scientificName': 'Amoxicillin + Clavulanic Acid 1000mg',
+        'companyName': 'GSK (GlaxoSmithKline)',
+        'category': 'المضادات الحيوية',
+      },
+      '6285000000018': {
+        'tradeName': 'بانادول إكسترا (Panadol Extra)',
+        'scientificName': 'Paracetamol 500mg + Caffeine 65mg',
+        'companyName': 'Haleon / GSK',
+        'category': 'مسكنات وخافضات حرارة',
+      },
+      '6281100223344': {
+        'tradeName': 'كونكور 5 مجم (Concor 5mg)',
+        'scientificName': 'Bisoprolol Fumarate 5mg',
+        'companyName': 'Merck (ميرك)',
+        'category': 'القلب والأوعية الدموية وضغط الدم',
+      },
+      '3582910023419': {
+        'tradeName': 'جلوكوفاج 1000 مجم (Glucophage 1000mg)',
+        'scientificName': 'Metformin HCl 1000mg',
+        'companyName': 'Merck Serono',
+        'category': 'أدوية السكري والغدد الصماء',
+      },
+      '7321400119283': {
+        'tradeName': 'نيكسيوم 40 مجم (Nexium 40mg)',
+        'scientificName': 'Esomeprazole Magnesium 40mg',
+        'companyName': 'AstraZeneca (أسترازينيكا)',
+        'category': 'الجهاز الهضمي والمعدة',
+      },
+      '5000456012948': {
+        'tradeName': 'بروفين 400 مجم (Brufen 400mg)',
+        'scientificName': 'Ibuprofen 400mg',
+        'companyName': 'Abbott (أبوت)',
+        'category': 'مسكنات وخافضات حرارة',
+      },
+      '6291011029341': {
+        'tradeName': 'فيتامين د3 50000 وحدة (D-Vital)',
+        'scientificName': 'Cholecalciferol 50,000 IU',
+        'companyName': 'Julphar (جلفار)',
+        'category': 'الفيتامينات والمكملات',
+      },
+      '6281008899001': {
+        'tradeName': 'باراسيتامول سامراء 500 مجم (Paracetamol SDI)',
+        'scientificName': 'Paracetamol 500mg',
+        'companyName': 'SDI Samarra (أدوية سامراء العراقية)',
+        'category': 'مسكنات وخافضات حرارة',
+      },
+    };
+    return db[clean];
+  }
+
   void _openAddEditMedicineModal({Medicine? medicineToEdit, String? initialBarcode}) {
-    final tradeCtrl = TextEditingController(text: medicineToEdit?.tradeName ?? '');
-    final sciCtrl = TextEditingController(text: medicineToEdit?.scientificName ?? '');
-    final compCtrl = TextEditingController(text: medicineToEdit?.companyName ?? '');
-    final catCtrl = TextEditingController(text: medicineToEdit?.category ?? '');
+    String autoTrade = medicineToEdit?.tradeName ?? '';
+    String autoSci = medicineToEdit?.scientificName ?? '';
+    String autoComp = medicineToEdit?.companyName ?? '';
+    String autoCat = medicineToEdit?.category ?? '';
+
+    if (medicineToEdit == null && initialBarcode != null && initialBarcode.isNotEmpty) {
+      final match = _lookupDrugInfo(initialBarcode);
+      if (match != null) {
+        autoTrade = match['tradeName'] ?? '';
+        autoSci = match['scientificName'] ?? '';
+        autoComp = match['companyName'] ?? '';
+        autoCat = match['category'] ?? '';
+      }
+    }
+
+    final tradeCtrl = TextEditingController(text: autoTrade);
+    final sciCtrl = TextEditingController(text: autoSci);
+    final compCtrl = TextEditingController(text: autoComp);
+    final catCtrl = TextEditingController(text: autoCat);
     final barCtrl = TextEditingController(text: medicineToEdit?.barcode ?? initialBarcode ?? '');
     final qtyCtrl = TextEditingController(text: '${medicineToEdit?.quantity ?? 1}');
     DateTime expDate = medicineToEdit?.expiryDate ?? DateTime.now().add(const Duration(days: 180));
@@ -2398,12 +3210,14 @@ class AdminDashboardWidget extends StatefulWidget {
   final bool isDarkMode;
   final VoidCallback onToggleTheme;
   final VoidCallback onBackToApp;
+  final VoidCallback? onLogout;
 
   const AdminDashboardWidget({
     super.key,
     required this.isDarkMode,
     required this.onToggleTheme,
     required this.onBackToApp,
+    this.onLogout,
   });
 
   @override
@@ -2454,7 +3268,7 @@ class _AdminDashboardWidgetState extends State<AdminDashboardWidget> {
                           ),
                           const SizedBox(width: 6),
                           IconButton(
-                            onPressed: widget.onBackToApp,
+                            onPressed: widget.onLogout ?? widget.onBackToApp,
                             icon: const Icon(Icons.logout, size: 18, color: Colors.white70),
                             tooltip: 'تسجيل الخروج',
                           ),

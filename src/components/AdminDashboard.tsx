@@ -187,11 +187,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-[24%] p-0.5 bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-lg overflow-hidden">
+            <div className="w-12 h-12 rounded-[24%] p-1 bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-lg overflow-hidden">
               <img 
-                src="/assets/aistudio/1792873493073_3d4a99d9.jpg" 
+                src="/assets/aistudio/1000003085_8b29976f.png" 
                 alt="Expiro Icon" 
-                className="w-full h-full object-cover rounded-[22%]" 
+                className="w-full h-full object-contain filter drop-shadow-md" 
               />
             </div>
             <div>

@@ -17,53 +17,34 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete, authenti
   // فحص الوضع الداكن من الـ prop أو من localStorage
   const darkModeActive = isDarkMode ?? (typeof window !== 'undefined' && localStorage.getItem('expiro_dark_mode') === 'true');
 
-  // المراحل على مدار 5 ثوانٍ كاملة:
-  // المرحلة 1: من 0 إلى 1.1 ثانية (ظهور الأيقونة فقط مع تأثير Bounce مرن وبدون أي نصوص)
-  // المرحلة 2: بعد 1.1 ثانية (ظهور عبارة "أهلاً بك في Expiro" تدريجياً)
-  // المرحلة 3: بعد 2.2 ثانية (ظهور عبارة "جاري تحضير صيدليتك..." والنقاط المتحركة بالتناوب)
-  // المرحلة 4: عند 4.65 ثوانٍ (بدء التلاشي الناعم ثم الانتقال عند 5.0 ثوانٍ بالضبط)
+  // المراحل على مدار 3 ثوانٍ بالضبط (3000ms):
+  // المرحلة 1: من 0 إلى 0.8 ثانية (ظهور الأيقونة فقط مع تأثير Bounce مرن وبدون أي نصوص)
+  // المرحلة 2: بعد 0.8 ثانية (ظهور عبارة "أهلاً بك في Expiro" تدريجياً)
+  // المرحلة 3: بعد 1.6 ثانية (ظهور عبارة "جاري تحضير صيدليتك..." والنقاط المتحركة)
+  // المرحلة 4: عند 2.65 ثانية (بدء التلاشي السلس ثم الانتقال لواجهة تسجيل أو إنشاء الحساب عند 3.0 ثوانٍ)
   const [stage, setStage] = useState<1 | 2 | 3 | 4>(1);
   const [isFadingOut, setIsFadingOut] = useState(false);
 
   useEffect(() => {
-    // 1. بعد 1.1 ثانية: ظهور عبارة الترحيب بعد استقرار الأيقونة
+    // 1. بعد 0.8 ثانية: ظهور عبارة الترحيب بعد استقرار الأيقونة
     const timerStage2 = setTimeout(() => {
       setStage(2);
-    }, 1100);
+    }, 800);
 
-    // 2. بعد 2.2 ثانية: ظهور عبارة التحميل والنقاط المتحركة
+    // 2. بعد 1.6 ثانية: ظهور عبارة التحميل والنقاط المتحركة
     const timerStage3 = setTimeout(() => {
       setStage(3);
-    }, 2200);
+    }, 1600);
 
-    // 3. عند 4.65 ثانية: بدء تلاشي الشاشة بنعومة
+    // 3. عند 2.65 ثانية: بدء تلاشي الشاشة بنعومة
     const timerFadeOut = setTimeout(() => {
       setIsFadingOut(true);
-    }, 4650);
+    }, 2650);
 
-    // 4. عند 5.0 ثوانٍ بالضبط: فحص الجلسة والانتقال للوجهة
+    // 4. عند 3.0 ثوانٍ بالضبط (3000ms): الانتقال المباشر لواجهة تسجيل الدخول أو إنشاء الحساب
     const timerComplete = setTimeout(() => {
-      let destination: SplashDestination = 'login';
-      const hasOpenedBefore = localStorage.getItem('expiro_has_opened_before');
-
-      if (!hasOpenedBefore) {
-        // أول فتح للتطبيق -> التوجيه لإنشاء حساب جديد للصيادلة
-        localStorage.setItem('expiro_has_opened_before', 'true');
-        destination = 'register';
-      } else if (authenticatedUser) {
-        // فحص صلاحية المستخدم المسجل
-        if (authenticatedUser.role === 'admin') {
-          destination = 'admin_dashboard';
-        } else {
-          destination = 'pharmacy_inventory';
-        }
-      } else {
-        // مستخدم غير مسجل -> شاشة تسجيل الدخول
-        destination = 'login';
-      }
-
-      onComplete(destination);
-    }, 5000);
+      onComplete('login');
+    }, 3000);
 
     return () => {
       clearTimeout(timerStage2);
@@ -71,7 +52,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete, authenti
       clearTimeout(timerFadeOut);
       clearTimeout(timerComplete);
     };
-  }, [onComplete, authenticatedUser]);
+  }, [onComplete]);
 
   return (
     <div 
@@ -86,6 +67,17 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete, authenti
       }}
       dir="rtl"
     >
+      {/* زر التخطي السريع للدخول الفوري */}
+      <div className="w-full flex justify-start z-20">
+        <button
+          type="button"
+          onClick={() => onComplete('login')}
+          className="px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-teal-100 text-xs font-bold transition-all border border-white/20 backdrop-blur-sm shadow-sm"
+        >
+          تخطي للدخول مباشرة ←
+        </button>
+      </div>
+
       {/* هالة توهج محيطية بلون الـ Teal التركوازي البترولي */}
       <div 
         className="absolute inset-0 pointer-events-none opacity-60"

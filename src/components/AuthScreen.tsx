@@ -289,11 +289,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, isDarkMo
           
           {/* Header ترويسة التطبيق */}
           <div className="bg-gradient-to-r from-[#0F766E] to-[#0D9488] p-6 text-white text-center relative">
-            <div className="w-16 h-16 rounded-[24%] p-0.5 bg-white/20 backdrop-blur-md border border-white/30 shadow-xl mx-auto mb-3 overflow-hidden flex items-center justify-center">
+            <div className="w-16 h-16 rounded-[24%] p-1 bg-white/20 backdrop-blur-md border border-white/30 shadow-xl mx-auto mb-3 overflow-hidden flex items-center justify-center">
               <img 
-                src="/assets/aistudio/1792873493073_3d4a99d9.jpg" 
+                src="/assets/aistudio/1000003085_8b29976f.png" 
                 alt="Expiro Icon" 
-                className="w-full h-full object-cover rounded-[22%]"
+                className="w-full h-full object-contain filter drop-shadow-md"
               />
             </div>
             <h1 className="text-xl font-black tracking-wide">Expiro</h1>
@@ -307,6 +307,43 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, isDarkMo
 
           <div className="p-6 space-y-4">
             
+            {/* أزرار التبويب العلوية الواضحة للتبديل الفوري بين تسجيل الدخول وإنشاء الحساب */}
+            <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('login');
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+                className={`py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                  authMode === 'login'
+                    ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-400 shadow-sm border border-slate-200 dark:border-slate-700'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>تسجيل الدخول</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('register');
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+                className={`py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                  authMode === 'register'
+                    ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-400 shadow-sm border border-slate-200 dark:border-slate-700'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>إنشاء حساب جديد</span>
+              </button>
+            </div>
+
             {/* عنوان النمط الحالي */}
             <div className="flex items-center justify-between border-b pb-3 border-slate-100 dark:border-slate-800">
               <div>

@@ -46,7 +46,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { RealBarcodeScanner } from './components/RealBarcodeScanner';
-import { lookupDrugByBarcode } from './data/drugDatabase';
+import { lookupDrugByBarcode, parseGS1Barcode } from './data/drugDatabase';
 import { AuthScreen } from './components/AuthScreen';
 import { AdminDashboard } from './components/AdminDashboard';
 import { SplashScreen, SplashDestination } from './components/SplashScreen';
@@ -250,68 +250,26 @@ export default function App() {
   const [notificationFilter, setNotificationFilter] = useState<'ALL' | 'EXPIRED' | 'NEAR'>('ALL');
 
   // إدارة حساب الصيدلي المسجل عبر Firebase
-  const [authenticatedUser, setAuthenticatedUser] = useState<PharmacistUser | null>(() => {
-    const saved = localStorage.getItem('expiro_active_user');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
+  // نبدأ بـ null دائماً لضمان تفعيل وظهور واجهة تسجيل الدخول وإنشاء الحساب واستعادة كلمة المرور للمالك ولكافة المستخدمين
+  const [authenticatedUser, setAuthenticatedUser] = useState<PharmacistUser | null>(null);
+
+  const [pharmacy, setPharmacy] = useState<Pharmacy>({
+    id: 'PH-BAGHDAD-884',
+    name: 'صيدلية الشفاء المركزية',
+    adminName: 'د. أحمد الصيدلي',
+    phone: '07701234567',
+    licenseImagePath: '',
+    isLicenseVerified: false,
   });
 
-  const [pharmacy, setPharmacy] = useState<Pharmacy>(() => {
-    const saved = localStorage.getItem('expiro_active_user');
-    if (saved) {
-      try {
-        const u = JSON.parse(saved) as PharmacistUser;
-        return {
-          id: `PH-${u.phone}`,
-          name: u.pharmacyName || `صيدلية د. ${u.fullName.split(' ')[0]}`,
-          adminName: u.fullName,
-          phone: u.phone,
-          licenseImagePath: u.licensePhotoBase64 || '',
-          isLicenseVerified: !!u.licensePhotoBase64,
-        };
-      } catch (e) {}
-    }
-    return {
-      id: 'PH-BAGHDAD-884',
-      name: 'صيدلية الشفاء المركزية',
-      adminName: 'د. أحمد الصيدلي',
-      phone: '07701234567',
-      licenseImagePath: '',
-      isLicenseVerified: false,
-    };
-  });
-
-  const [currentUser, setCurrentUser] = useState<AppUser>(() => {
-    const saved = localStorage.getItem('expiro_active_user');
-    if (saved) {
-      try {
-        const u = JSON.parse(saved) as PharmacistUser;
-        return {
-          id: `USR-${u.phone}`,
-          name: u.fullName,
-          phone: u.phone,
-          role: 'admin',
-          pharmacyId: `PH-${u.phone}`,
-          isActive: true,
-          isBlocked: false,
-        };
-      } catch (e) {}
-    }
-    return {
-      id: 'USR-ADMIN-01',
-      name: 'أحمد',
-      phone: '07701234567',
-      role: 'admin',
-      pharmacyId: 'PH-BAGHDAD-884',
-      isActive: true,
-      isBlocked: false,
-    };
+  const [currentUser, setCurrentUser] = useState<AppUser>({
+    id: 'USR-ADMIN-01',
+    name: 'أحمد',
+    phone: '07701234567',
+    role: 'admin',
+    pharmacyId: 'PH-BAGHDAD-884',
+    isActive: true,
+    isBlocked: false,
   });
 
   // وضع العرض لمالك النظام: إما لوحة تحكم الأدمن أو معاينة مخزون الصيدلية
@@ -750,22 +708,33 @@ export default function App() {
   const handleBarcodeManualLookup = (code: string) => {
     const clean = code.trim();
     if (!clean) return;
+
+    const gs1 = parseGS1Barcode(clean);
+    const searchCode = gs1.gtin || clean;
     const match = lookupDrugByBarcode(clean);
+
     if (match) {
       setFormData((prev) => ({
         ...prev,
-        barcode: clean,
+        barcode: searchCode,
         tradeName: match.tradeName,
         scientificName: match.scientificName,
         companyName: match.companyName,
         category: match.category,
-        notes: match.notes,
+        notes: gs1.batchNumber ? `تشغيلة: ${gs1.batchNumber}. ${match.notes || ''}`.trim() : match.notes,
         alertThresholdDays: match.defaultAlertDays,
+        expiryDate: gs1.expiryDate || prev.expiryDate,
       }));
       playTone('beep');
       showToast(`تم التعرف على: ${match.tradeName}`);
     } else {
-      showToast('لم يتم العثور على الدواء بالدليل، يمكنك إدخال الاسم يدوياً');
+      setFormData((prev) => ({
+        ...prev,
+        barcode: searchCode,
+        expiryDate: gs1.expiryDate || prev.expiryDate,
+        notes: gs1.batchNumber ? `تشغيلة: ${gs1.batchNumber}` : prev.notes,
+      }));
+      showToast('تم إدخال الباركود، يمكنك إدخال الاسم يدوياً');
     }
   };
 
