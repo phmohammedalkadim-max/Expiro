@@ -533,7 +533,7 @@ class _AuthScreenWidgetState extends State<AuthScreenWidget> {
                       textAlign: TextAlign.right,
                       style: TextStyle(
                         fontSize: 11,
-                        color: isDark ? Colors.slate[300] : Colors.grey[700],
+                        color: isDark ? Colors.grey[300] : Colors.grey[700],
                       ),
                     ),
                     const SizedBox(height: 12),
